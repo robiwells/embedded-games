@@ -81,59 +81,168 @@ void buzzer_hit(void) {
     tone(BUZZER_PIN, FREQ_HIT, DURATION_HIT);
 }
 
-void buzzer_bullseye(void) {
-    tone(BUZZER_PIN, FREQ_BULLSEYE_1, DURATION_BULLSEYE_NOTE);
-    delay(DURATION_BULLSEYE_NOTE);
-    tone(BUZZER_PIN, FREQ_BULLSEYE_2, DURATION_BULLSEYE_NOTE);
-    delay(DURATION_BULLSEYE_NOTE);
-    tone(BUZZER_PIN, FREQ_BULLSEYE_3, DURATION_BULLSEYE_NOTE);
-}
+// ============================================================================
+// Non-Blocking Animation Controller
+// ============================================================================
 
-void buzzer_celebration(void) {
-    // Ascending 5-note fanfare: C5, E5, G5, C6, E6
-    const uint16_t freqs[] = {523, 659, 784, 1047, 1319};
-    const uint16_t durations[] = {150, 150, 150, 150, 300};
+enum AnimationState {
+    ANIM_IDLE,
+    ANIM_BULLSEYE,
+    ANIM_CELEBRATION,
+    ANIM_GAME_OVER
+};
 
-    for (uint8_t i = 0; i < 5; i++) {
-        tone(BUZZER_PIN, freqs[i], durations[i]);
-        delay(durations[i] + 50);  // Small gap between notes
+static AnimationState anim_state = ANIM_IDLE;
+static uint8_t anim_step = 0;
+static uint32_t anim_last_update = 0;
+
+// LED animation state
+static uint8_t led_sweep = 0;
+static uint8_t led_pos = 0;
+static uint8_t flash_count = 0;
+static bool flash_state = false;
+static uint32_t led_last_update = 0;
+
+bool animation_update(void) {
+    if (anim_state == ANIM_IDLE) {
+        return true;  // No animation playing
     }
-}
 
-void buzzer_game_over(void) {
-    // Descending 3-note "sad trombone": 400Hz, 300Hz, 200Hz
-    tone(BUZZER_PIN, FREQ_GAME_OVER_1, DURATION_GAME_OVER_NOTE);
-    delay(DURATION_GAME_OVER_NOTE);
-    tone(BUZZER_PIN, FREQ_GAME_OVER_2, DURATION_GAME_OVER_NOTE);
-    delay(DURATION_GAME_OVER_NOTE);
-    tone(BUZZER_PIN, FREQ_GAME_OVER_3, DURATION_GAME_OVER_NOTE);
-}
+    uint32_t now = millis();
 
-void led_celebration(void) {
-    // LED wave pattern: sweep left-to-right 3 times
-    for (uint8_t sweep = 0; sweep < CELEBRATION_SWEEPS; sweep++) {
-        for (uint8_t i = 0; i < NUM_LEDS; i++) {
-            led_set(i, true);
-            delay(CELEBRATION_LED_DELAY);
-            led_set(i, false);
+    switch (anim_state) {
+        case ANIM_BULLSEYE:
+            if (now - anim_last_update >= DURATION_BULLSEYE_NOTE) {
+                anim_last_update = now;
+
+                switch(anim_step) {
+                    case 0: tone(BUZZER_PIN, FREQ_BULLSEYE_1, DURATION_BULLSEYE_NOTE); break;
+                    case 1: tone(BUZZER_PIN, FREQ_BULLSEYE_2, DURATION_BULLSEYE_NOTE); break;
+                    case 2: tone(BUZZER_PIN, FREQ_BULLSEYE_3, DURATION_BULLSEYE_NOTE); break;
+                }
+
+                anim_step++;
+                if (anim_step >= 3) {
+                    anim_state = ANIM_IDLE;
+                    return true;
+                }
+            }
+            break;
+
+        case ANIM_CELEBRATION: {
+            // Buzzer sequence
+            const uint16_t freqs[] = {523, 659, 784, 1047, 1319};
+            const uint16_t durations[] = {150, 150, 150, 150, 300};
+
+            if (anim_step < 5 && now - anim_last_update >= (anim_step == 0 ? 0 : durations[anim_step-1] + 50)) {
+                tone(BUZZER_PIN, freqs[anim_step], durations[anim_step]);
+                anim_last_update = now;
+                anim_step++;
+            }
+
+            // LED sweep animation (runs in parallel)
+            if (now - led_last_update >= CELEBRATION_LED_DELAY) {
+                led_last_update = now;
+
+                if (led_sweep < CELEBRATION_SWEEPS) {
+                    led_set(led_pos, false);
+                    led_pos++;
+
+                    if (led_pos >= NUM_LEDS) {
+                        led_pos = 0;
+                        led_sweep++;
+                    }
+
+                    if (led_sweep < CELEBRATION_SWEEPS) {
+                        led_set(led_pos, true);
+                    } else {
+                        led_clear_all();
+                    }
+                }
+            }
+
+            // Check if complete
+            if (anim_step >= 5 && led_sweep >= CELEBRATION_SWEEPS) {
+                anim_state = ANIM_IDLE;
+                led_sweep = 0;
+                led_pos = 0;
+                return true;
+            }
+            break;
         }
+
+        case ANIM_GAME_OVER:
+            // Buzzer sequence
+            if (now - anim_last_update >= DURATION_GAME_OVER_NOTE) {
+                anim_last_update = now;
+
+                if (anim_step < 3) {
+                    switch(anim_step) {
+                        case 0: tone(BUZZER_PIN, FREQ_GAME_OVER_1, DURATION_GAME_OVER_NOTE); break;
+                        case 1: tone(BUZZER_PIN, FREQ_GAME_OVER_2, DURATION_GAME_OVER_NOTE); break;
+                        case 2: tone(BUZZER_PIN, FREQ_GAME_OVER_3, DURATION_GAME_OVER_NOTE); break;
+                    }
+                    anim_step++;
+                }
+            }
+
+            // LED flash animation
+            if (now - led_last_update >= GAME_OVER_LED_FLASH_DURATION) {
+                led_last_update = now;
+                flash_state = !flash_state;
+
+                if (flash_state) {
+                    for (uint8_t i = 0; i < NUM_LEDS; i++) {
+                        led_set(i, true);
+                    }
+                    flash_count++;
+                } else {
+                    led_clear_all();
+                }
+
+                if (flash_count >= GAME_OVER_LED_FLASH_COUNT) {
+                    anim_state = ANIM_IDLE;
+                    flash_count = 0;
+                    led_clear_all();
+                    return true;
+                }
+            }
+            break;
+
+        case ANIM_IDLE:
+        default:
+            return true;
     }
-    led_clear_all();
+
+    return false;  // Still animating
 }
 
-void led_game_over(void) {
-    // Flash all LEDs twice
-    for (uint8_t flash = 0; flash < 2; flash++) {
-        // Turn all on
-        for (uint8_t i = 0; i < NUM_LEDS; i++) {
-            led_set(i, true);
-        }
-        delay(100);
+void animation_start_bullseye(void) {
+    anim_state = ANIM_BULLSEYE;
+    anim_step = 0;
+    anim_last_update = millis();
+}
 
-        // Turn all off
-        led_clear_all();
-        delay(100);
-    }
+void animation_start_celebration(void) {
+    anim_state = ANIM_CELEBRATION;
+    anim_step = 0;
+    led_sweep = 0;
+    led_pos = 0;
+    anim_last_update = millis();
+    led_last_update = millis();
+}
+
+void animation_start_game_over(void) {
+    anim_state = ANIM_GAME_OVER;
+    anim_step = 0;
+    flash_count = 0;
+    flash_state = false;
+    anim_last_update = millis();
+    led_last_update = millis();
+}
+
+bool animation_is_playing(void) {
+    return anim_state != ANIM_IDLE;
 }
 
 void display_show_attract(uint16_t high_score) {

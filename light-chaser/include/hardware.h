@@ -17,9 +17,6 @@ void button_clear_state(void);  // Clear button state for clean state transition
 // Sound effects
 void buzzer_tick(void);
 void buzzer_hit(void);
-void buzzer_bullseye(void);
-void buzzer_celebration(void);
-void buzzer_game_over(void);
 
 // LCD display control
 void display_show_attract(uint16_t high_score);
@@ -27,9 +24,12 @@ void display_show_game(uint16_t score, uint16_t high_score);
 void display_show_celebration(uint16_t score);
 void display_clear(void);
 
-// Celebration effects
-void led_celebration(void);
-void led_game_over(void);
+// Non-blocking animation interface
+bool animation_update(void);
+void animation_start_bullseye(void);
+void animation_start_celebration(void);
+void animation_start_game_over(void);
+bool animation_is_playing(void);
 
 // EEPROM high score storage
 uint16_t eeprom_read_high_score(void);

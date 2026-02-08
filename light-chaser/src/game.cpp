@@ -10,6 +10,7 @@ static uint16_t chase_speed = INITIAL_CHASE_SPEED;
 static uint32_t last_chase_update = 0;
 static uint16_t current_score = 0;
 static uint32_t result_state_start = 0;
+static uint32_t celebration_start_time = 0;
 
 // High score tracking
 static uint16_t high_score = 0;
@@ -19,6 +20,7 @@ static bool is_new_high_score = false;
 static void handle_attract_state(void);
 static void handle_playing_state(void);
 static void handle_result_state(void);
+static void handle_celebration_state(void);
 static void handle_game_over_state(void);
 static void update_chase_position(void);
 static uint8_t calculate_score(uint8_t position);
@@ -38,6 +40,9 @@ void game_init(void) {
 }
 
 void game_update(void) {
+    // Always update animations (non-blocking)
+    animation_update();
+
     switch (current_state) {
         case STATE_ATTRACT:
             handle_attract_state();
@@ -47,6 +52,9 @@ void game_update(void) {
             break;
         case STATE_RESULT:
             handle_result_state();
+            break;
+        case STATE_CELEBRATION:
+            handle_celebration_state();
             break;
         case STATE_GAME_OVER:
             handle_game_over_state();
@@ -95,7 +103,7 @@ static void handle_playing_state(void) {
 
             // Play appropriate sound
             if (points == BULLSEYE_SCORE) {
-                buzzer_bullseye();
+                animation_start_bullseye();
             } else {
                 buzzer_hit();
             }
@@ -116,27 +124,20 @@ static void handle_playing_state(void) {
             if (is_new_high_score) {
                 // Celebrate and save new high score
                 eeprom_write_high_score(high_score);
-                buzzer_celebration();
-                led_celebration();
                 display_show_celebration(high_score);
-                delay(2000);  // Show celebration
-
-                // Clear any button presses that occurred during celebration
-                button_clear_state();
+                animation_start_celebration();
+                current_state = STATE_CELEBRATION;
+                celebration_start_time = millis();
+                return;  // Handle in celebration state
             } else {
-                // Game over without high score - play short feedback
-                buzzer_game_over();
-                led_game_over();
+                // Game over without high score - play animation
+                animation_start_game_over();
+                current_state = STATE_GAME_OVER;
+                led_clear_all();  // Stop chase LED before animation starts
+
+                // Clear button state to prevent miss button press from triggering anything
+                button_clear_state();
             }
-
-            // Reset to attract mode
-            current_score = 0;
-            chase_speed = INITIAL_CHASE_SPEED;
-            display_show_attract(high_score);
-            current_state = STATE_ATTRACT;
-
-            // Clear button state to prevent miss button press from starting new game
-            button_clear_state();
         }
     }
 }
@@ -150,34 +151,26 @@ static void handle_result_state(void) {
     }
 }
 
-static void handle_game_over_state(void) {
-    // Display final score pattern (blink all LEDs)
+static void handle_celebration_state(void) {
     uint32_t now = millis();
-    static uint32_t last_blink = 0;
-    static bool blink_state = false;
 
-    if (now - last_blink >= 500) {
-        last_blink = now;
-        blink_state = !blink_state;
-
-        if (blink_state) {
-            for (uint8_t i = 0; i < NUM_LEDS; i++) {
-                led_set(i, true);
-            }
-        } else {
-            led_clear_all();
-        }
-    }
-
-    // Wait for button to restart
-    if (button_just_pressed()) {
-        led_clear_all();
+    // After 2 seconds, return to attract mode
+    if (now - celebration_start_time >= 2000) {
         current_state = STATE_ATTRACT;
-        current_position = 0;
-        chase_direction = 1;
         chase_speed = INITIAL_CHASE_SPEED;
+        display_show_attract(high_score);
+        button_clear_state();
+    }
+}
+
+static void handle_game_over_state(void) {
+    // Wait for animation to complete, then return to attract mode
+    if (!animation_is_playing()) {
+        current_state = STATE_ATTRACT;
         current_score = 0;
-        last_chase_update = millis();
+        chase_speed = INITIAL_CHASE_SPEED;
+        display_show_attract(high_score);
+        button_clear_state();
     }
 }
 

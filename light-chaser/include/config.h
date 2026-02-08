@@ -43,6 +43,10 @@ const uint16_t DURATION_HIT = 100;
 const uint16_t DURATION_BULLSEYE_NOTE = 100;
 const uint16_t DURATION_GAME_OVER_NOTE = 200;
 
+// Game over LED flash configuration
+const uint16_t GAME_OVER_LED_FLASH_DURATION = 150;  // milliseconds per flash state
+const uint8_t GAME_OVER_LED_FLASH_COUNT = 5;        // number of complete flash cycles
+
 // LCD configuration
 const uint8_t LCD_ADDRESS = 0x27;  // Try 0x3F if 0x27 doesn't work
 const uint8_t LCD_COLS = 16;
@@ -61,6 +65,7 @@ enum GameState {
     STATE_ATTRACT,
     STATE_PLAYING,
     STATE_RESULT,
+    STATE_CELEBRATION,
     STATE_GAME_OVER
 };
 
