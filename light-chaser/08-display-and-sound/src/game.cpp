@@ -1,0 +1,199 @@
+#include "game.h"
+#include "hardware.h"
+#include "config.h"
+
+static GameState current_state = STATE_ATTRACT;
+
+static uint8_t current_position = 0;
+static int8_t chase_direction = 1;
+static uint16_t chase_speed = INITIAL_CHASE_SPEED;
+static uint32_t last_chase_update = 0;
+
+static uint16_t current_score = 0;
+static uint16_t high_score = 0;
+
+static uint32_t state_entry_time = 0;
+
+static void attract_enter(void);
+static void attract_update(void);
+static void attract_exit(void);
+
+static void playing_enter(void);
+static void playing_update(void);
+static void playing_exit(void);
+
+static void result_enter(void);
+static void result_update(void);
+static void result_exit(void);
+
+static void game_over_enter(void);
+static void game_over_update(void);
+static void game_over_exit(void);
+
+static void update_chase_position(void);
+static uint8_t calculate_score(uint8_t position);
+
+static const StateHandler state_handlers[4] = {
+    [STATE_ATTRACT]     = {attract_enter,     attract_update,     attract_exit},
+    [STATE_PLAYING]     = {playing_enter,     playing_update,     playing_exit},
+    [STATE_RESULT]      = {result_enter,      result_update,      result_exit},
+    [STATE_GAME_OVER]   = {game_over_enter,   game_over_update,   game_over_exit}
+};
+
+void game_transition_to(GameState new_state) {
+    if (state_handlers[current_state].exit != NULL) {
+        state_handlers[current_state].exit();
+    }
+
+    current_state = new_state;
+
+    if (state_handlers[current_state].enter != NULL) {
+        state_handlers[current_state].enter();
+    }
+}
+
+void game_init(void) {
+    current_position = 0;
+    chase_direction = 1;
+    chase_speed = INITIAL_CHASE_SPEED;
+    last_chase_update = millis();
+
+    high_score = 0;
+    current_score = 0;
+
+    current_state = STATE_ATTRACT;
+    game_transition_to(STATE_ATTRACT);
+}
+
+void game_update(void) {
+    if (state_handlers[current_state].update != NULL) {
+        state_handlers[current_state].update();
+    }
+}
+
+static void attract_enter(void) {
+    chase_speed = INITIAL_CHASE_SPEED;
+    display_show_attract(high_score);
+}
+
+static void attract_update(void) {
+    update_chase_position();
+
+    if (button_just_pressed()) {
+        game_transition_to(STATE_PLAYING);
+    }
+}
+
+static void attract_exit(void) {
+    current_score = 0;
+    button_clear_state();
+}
+
+static void playing_enter(void) {
+    display_show_game(current_score, high_score);
+    last_chase_update = millis();
+}
+
+static void playing_update(void) {
+    update_chase_position();
+
+    if (button_just_pressed()) {
+        uint8_t points = calculate_score(current_position);
+
+        if (points > 0) {
+            current_score += points;
+
+            if (current_score > high_score) {
+                high_score = current_score;
+            }
+
+            display_show_game(current_score, high_score);
+
+            if (points == BULLSEYE_SCORE) {
+                buzzer_bullseye();
+            } else {
+                buzzer_hit();
+            }
+
+            if (chase_speed > MIN_CHASE_SPEED) {
+                chase_speed -= SPEED_DECREASE;
+                if (chase_speed < MIN_CHASE_SPEED) {
+                    chase_speed = MIN_CHASE_SPEED;
+                }
+            }
+
+            game_transition_to(STATE_RESULT);
+
+        } else {
+            game_transition_to(STATE_GAME_OVER);
+        }
+    }
+}
+
+static void playing_exit(void) {
+}
+
+static void result_enter(void) {
+    state_entry_time = millis();
+}
+
+static void result_update(void) {
+    uint32_t now = millis();
+
+    if (now - state_entry_time >= 300) {
+        game_transition_to(STATE_PLAYING);
+        last_chase_update = now;
+    }
+}
+
+static void result_exit(void) {
+}
+
+static void game_over_enter(void) {
+    buzzer_game_over();
+    led_clear_all();
+    state_entry_time = millis();
+}
+
+static void game_over_update(void) {
+    uint32_t now = millis();
+
+    if (now - state_entry_time >= 2000) {
+        game_transition_to(STATE_ATTRACT);
+    }
+}
+
+static void game_over_exit(void) {
+    current_score = 0;
+    button_clear_state();
+}
+
+static void update_chase_position(void) {
+    uint32_t now = millis();
+
+    if (now - last_chase_update >= chase_speed) {
+        last_chase_update = now;
+
+        led_clear_all();
+
+        current_position += chase_direction;
+
+        if (current_position == 0) {
+            chase_direction = 1;
+        } else if (current_position == NUM_LEDS - 1) {
+            chase_direction = -1;
+        }
+
+        led_set(current_position, true);
+
+        buzzer_tick();
+    }
+}
+
+static uint8_t calculate_score(uint8_t position) {
+    if (position >= TARGET_ZONE_START && position <= TARGET_ZONE_END) {
+        return BULLSEYE_SCORE;
+    }
+
+    return 0;
+}
