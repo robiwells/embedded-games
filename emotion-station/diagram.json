@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "author": "Emotion Station",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led-ring",
+      "id": "ring1",
+      "top": -100,
+      "left": 200,
+      "attrs": { "pixels": "16" }
+    }
+  ],
+  "connections": [
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+    ["ring1:DIN", "esp:5", "green", []],
+    ["ring1:VCC", "esp:5V", "red", []],
+    ["ring1:GND", "esp:GND.2", "black", []]
+  ]
+}
