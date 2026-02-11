@@ -15,6 +15,7 @@
 #include "../../test/mocks/platform_hal_fake.cpp"
 
 // Include production code directly (test-only pattern)
+#include "../../src/event_bus.cpp"
 #include "../../src/game.cpp"
 #include "../../src/led_controller.cpp"
 

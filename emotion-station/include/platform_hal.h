@@ -22,6 +22,7 @@
 typedef struct {
     // ========= Time Functions =========
     unsigned long (*millis)(void);      ///< Get milliseconds since boot
+    unsigned long (*micros)(void);      ///< Get microseconds since boot
     void (*delay)(unsigned long ms);    ///< Blocking delay (avoid in production)
 
     // ========= Logging Functions =========
@@ -60,6 +61,7 @@ extern PlatformHAL* platform_hal;
  * Makes code more readable and easier to refactor.
  */
 #define HAL_millis() platform_hal->millis()
+#define HAL_micros() platform_hal->micros()
 #define HAL_delay(ms) platform_hal->delay(ms)
 #define HAL_log_print(msg) platform_hal->log_print(msg)
 #define HAL_log_println(msg) platform_hal->log_println(msg)

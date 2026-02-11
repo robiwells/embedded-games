@@ -18,4 +18,33 @@
 // Timing Constants
 #define WATCHDOG_TIMEOUT_MS 4000
 
+// ========= ENUMS (Forward declarations for Phase 2.5 Event Bus) =========
+
+// Mood categories (fully implemented in Phase 3)
+typedef enum {
+    MOOD_HAPPY = 0,
+    MOOD_SAD,
+    MOOD_CALM,
+    MOOD_ENERGETIC,
+    MOOD_ANXIOUS,
+    MOOD_ANGRY,
+    NUM_MOODS
+} MoodCategory;
+
+// Error codes (fully implemented in Phase 10)
+typedef enum {
+    ERROR_NONE = 0,
+    ERROR_NFC_TIMEOUT,
+    ERROR_NFC_READ_FAILED,
+    ERROR_INVALID_UID,
+    ERROR_AUDIO_INIT_FAILED,
+    ERROR_AUDIO_PLAYBACK_FAILED,
+    ERROR_SD_CARD_MISSING,
+    ERROR_ACTIVITY_NOT_FOUND,
+    ERROR_BATTERY_CRITICAL,
+    ERROR_HARDWARE_FAULT,
+    ERROR_UNKNOWN,
+    NUM_ERROR_CODES
+} ErrorCode;
+
 #endif

@@ -63,6 +63,11 @@ static unsigned long fake_millis(void) {
     return fake_time_ms;
 }
 
+static unsigned long fake_micros(void) {
+    // Convert milliseconds to microseconds
+    return fake_time_ms * 1000;
+}
+
 static void fake_delay(unsigned long ms) {
     // Advance time instead of blocking
     fake_time_ms += ms;
@@ -148,6 +153,7 @@ static void fake_watchdog_reset(void) {
 PlatformHAL platform_fake = {
     // Time
     .millis = fake_millis,
+    .micros = fake_micros,
     .delay = fake_delay,
 
     // Logging

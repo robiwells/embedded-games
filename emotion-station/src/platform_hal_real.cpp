@@ -21,6 +21,10 @@ static unsigned long real_millis(void) {
     return millis();
 }
 
+static unsigned long real_micros(void) {
+    return micros();
+}
+
 static void real_delay(unsigned long ms) {
     delay(ms);
 }
@@ -105,6 +109,7 @@ static void real_watchdog_reset(void) {
 PlatformHAL platform_real = {
     // Time
     .millis = real_millis,
+    .micros = real_micros,
     .delay = real_delay,
 
     // Logging

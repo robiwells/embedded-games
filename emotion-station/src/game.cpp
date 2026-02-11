@@ -1,6 +1,7 @@
 #include "game.h"
 #include "led_controller.h"
 #include "config.h"
+#include "event_bus.h"
 
 // State variables
 static GameState current_state = STATE_IDLE;
@@ -105,9 +106,16 @@ void game_transition_to(GameState new_state) {
         return;
     }
 
+    // Prevent no-op transitions
+    if (new_state == current_state) {
+        return;
+    }
+
+    GameState old_state = current_state;
+
     // Log state change
     HAL_log_print("State: ");
-    HAL_log_print(state_names[current_state]);
+    HAL_log_print(state_names[old_state]);
     HAL_log_print(" -> ");
     HAL_log_println(state_names[new_state]);
 
@@ -115,6 +123,13 @@ void game_transition_to(GameState new_state) {
     if (state_handlers[current_state].exit != nullptr) {
         state_handlers[current_state].exit();
     }
+
+    // Publish STATE_EXITED event (Phase 2.5)
+    struct {
+        GameState old_state;
+        GameState new_state;
+    } exit_data = {old_state, new_state};
+    event_bus_publish(STATE_EXITED, PRIORITY_HIGH, &exit_data, sizeof(exit_data));
 
     // Update state and entry time
     current_state = new_state;
@@ -124,6 +139,13 @@ void game_transition_to(GameState new_state) {
     if (state_handlers[current_state].enter != nullptr) {
         state_handlers[current_state].enter();
     }
+
+    // Publish STATE_ENTERED event (Phase 2.5)
+    struct {
+        GameState old_state;
+        GameState new_state;
+    } enter_data = {old_state, new_state};
+    event_bus_publish(STATE_ENTERED, PRIORITY_HIGH, &enter_data, sizeof(enter_data));
 }
 
 // =============================================================================
