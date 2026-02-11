@@ -2,23 +2,15 @@
 #include "config.h"
 #include "hardware.h"
 #include "led_controller.h"
+#include "game.h"
 #include <esp_task_wdt.h>
 
 void setup() {
     hardware_init();
     led_init();
+    game_init();
 
-    // LED test sequence disabled for Wokwi (would exceed watchdog timeout)
-    // Uncomment for manual testing on hardware:
-    // led_test_sequence();
-
-    // Start idle animation
-    led_set_animation(LED_IDLE);
-    led_set_brightness(POWER_MODE_ECO);
-
-    Serial.println("\n=== Phase 1 Ready ===");
-    Serial.println("System running in IDLE mode with eco brightness");
-    Serial.println("(LED test sequence skipped - run manually if needed)");
+    Serial.println("\nPress 't' to run state machine test");
 }
 
 void loop() {
@@ -26,6 +18,13 @@ void loop() {
 
     hardware_heartbeat();
     led_update();
+    game_update();
 
-    // No delay() - fully non-blocking
+    // Test trigger from serial input
+    if (Serial.available()) {
+        char cmd = Serial.read();
+        if (cmd == 't') {
+            game_test_transitions();
+        }
+    }
 }
