@@ -1,7 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#ifndef UNIT_TEST
 #include <Arduino.h>
+#endif
 
 // GPIO Pin Assignments
 #define LED_DATA_PIN 5

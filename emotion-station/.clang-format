@@ -1,0 +1,40 @@
+---
+# Clang-Format configuration for Emotion Station project
+# Based on Google style with embedded-friendly adjustments
+
+BasedOnStyle: Google
+Language: Cpp
+
+# Line length and indentation
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+
+# Pointer and reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpacesInAngles: false
+
+# Include sorting
+SortIncludes: true
+IncludeBlocks: Preserve
+
+# Comments
+ReflowComments: true
+
+# Other
+AlwaysBreakAfterReturnType: None
+BinPackParameters: true
+BinPackArguments: true

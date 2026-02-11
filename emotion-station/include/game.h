@@ -1,7 +1,11 @@
 #ifndef GAME_H
 #define GAME_H
 
+#ifndef UNIT_TEST
 #include <Arduino.h>
+#endif
+
+#include "platform_hal.h"
 
 // Game states enum
 typedef enum {
