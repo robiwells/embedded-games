@@ -13,6 +13,7 @@
 // Include mocks BEFORE production code
 #include "../../test/mocks/platform_hal_fake.cpp"
 #include "../../test/mocks/nfc_handler_mock.cpp"
+#include "../../test/mocks/activity_manager_mock.cpp"
 
 // Include production code directly (test-only pattern)
 #include "../../src/event_bus.cpp"
@@ -102,15 +103,10 @@ void test_validating_transitions_immediately_on_valid_uid(void) {
     TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
 }
 
-void test_selecting_transitions_after_500ms(void) {
+void test_selecting_transitions_immediately(void) {
     fake_set_millis(0);
     game_transition_to(STATE_SELECTING);
 
-    fake_advance_time(500);
-    game_update();
-    TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
-
-    fake_advance_time(1);
     game_update();
     TEST_ASSERT_EQUAL(STATE_PLAYING_ACTIVITY, game_get_current_state());
 }
@@ -204,8 +200,7 @@ void test_rapid_transitions(void) {
     game_update();
     TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
 
-    fake_advance_time(501);   // SELECTING -> PLAYING
-    game_update();
+    game_update();   // SELECTING -> PLAYING (immediate)
     TEST_ASSERT_EQUAL(STATE_PLAYING_ACTIVITY, game_get_current_state());
 }
 
@@ -293,7 +288,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_idle_auto_transitions_after_5_seconds);
     RUN_TEST(test_nfc_detected_transitions_after_1_second);
     RUN_TEST(test_validating_transitions_immediately_on_valid_uid);
-    RUN_TEST(test_selecting_transitions_after_500ms);
+    RUN_TEST(test_selecting_transitions_immediately);
     RUN_TEST(test_playing_transitions_after_5_seconds);
     RUN_TEST(test_activity_complete_transitions_after_2_seconds);
     RUN_TEST(test_error_transitions_after_5_seconds);

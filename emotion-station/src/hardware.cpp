@@ -2,6 +2,7 @@
 #include "config.h"
 #include "platform_hal.h"
 #include "nfc_handler.h"
+#include "activity_manager.h"
 #include <esp_task_wdt.h>
 #include <Arduino.h>
 
@@ -23,6 +24,11 @@ void hardware_init() {
     if (!nfc_init()) {
         HAL_log_println("WARNING: NFC initialisation failed");
         HAL_log_println("System will continue without NFC functionality");
+    }
+
+    // Initialise activity manager (Phase 5)
+    if (!activity_manager_init()) {
+        HAL_log_println("WARNING: Activity manager init failed - using fallback");
     }
 
     HAL_log_println("Hardware initialisation complete");

@@ -4,6 +4,7 @@
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "platform_hal.h"
+#include "activity_manager.h"
 #include <stdio.h>
 
 // State variables
@@ -13,6 +14,7 @@ static unsigned long state_entry_time = 0;
 // NFC variables (Phase 3)
 static uint8_t nfc_uid[7];            // Last read UID
 static MoodCategory current_mood = MOOD_UNKNOWN;  // Mood mapped from UID (Phase 4)
+static Activity* selected_activity = nullptr;     // Selected activity (Phase 5)
 static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
 static uint32_t debounce_start = 0;   // Token detection debounce timestamp
@@ -331,12 +333,17 @@ static void validating_exit() {
 
 static void selecting_enter() {
     HAL_log_println("[SELECTING] Enter: Choosing activity");
+    selected_activity = nullptr;
 }
 
 static void selecting_update() {
-    // Transition after 500ms
-    if (HAL_millis() - state_entry_time > 500) {
+    selected_activity = activity_select(current_mood, TIME_AFTERNOON);
+    if (selected_activity != nullptr) {
+        HAL_log_println("[SELECTING] Activity found");
         game_transition_to(STATE_PLAYING_ACTIVITY);
+    } else {
+        HAL_log_println("[SELECTING] ERROR: No activity found for mood");
+        game_transition_to(STATE_ERROR);
     }
 }
 

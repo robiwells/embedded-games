@@ -1,0 +1,58 @@
+{
+  "activities": [
+    {
+      "id": 1,
+      "mood": "happy",
+      "name": "Sunshine Dance",
+      "file_path": "/audio/happy/25_sunshine_dance.mp3",
+      "duration_seconds": 120,
+      "time_of_day": ["morning", "afternoon", "evening"],
+      "type": "movement"
+    },
+    {
+      "id": 2,
+      "mood": "sad",
+      "name": "Rainbow Breath",
+      "file_path": "/audio/sad/17_rainbow_breath.mp3",
+      "duration_seconds": 180,
+      "time_of_day": ["morning", "afternoon", "evening", "bedtime"],
+      "type": "breathing"
+    },
+    {
+      "id": 3,
+      "mood": "calm",
+      "name": "Slow Breathing",
+      "file_path": "/audio/calm/41_slow_breathing.mp3",
+      "duration_seconds": 240,
+      "time_of_day": ["morning", "afternoon", "evening", "bedtime"],
+      "type": "breathing"
+    },
+    {
+      "id": 4,
+      "mood": "energetic",
+      "name": "Movement One",
+      "file_path": "/audio/energetic/movement_1.mp3",
+      "duration_seconds": 90,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "movement"
+    },
+    {
+      "id": 5,
+      "mood": "anxious",
+      "name": "Bubble Breath",
+      "file_path": "/audio/anxious/9_bubble_breath.mp3",
+      "duration_seconds": 180,
+      "time_of_day": ["morning", "afternoon", "evening", "bedtime"],
+      "type": "breathing"
+    },
+    {
+      "id": 6,
+      "mood": "angry",
+      "name": "Dragon Breath",
+      "file_path": "/audio/angry/1_dragon_breath.mp3",
+      "duration_seconds": 120,
+      "time_of_day": ["morning", "afternoon", "evening"],
+      "type": "breathing"
+    }
+  ]
+}

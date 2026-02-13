@@ -6,6 +6,7 @@
 #include "game.h"
 #include "event_bus.h"
 #include "nfc_handler.h"
+#include "activity_manager.h"
 #include <esp_task_wdt.h>
 
 void setup() {
@@ -29,6 +30,12 @@ void setup() {
 #ifdef WOKWI_SIMULATION
     Serial.println("  p - Present mock NFC token");
     Serial.println("  r - Remove mock NFC token");
+    Serial.println("  0 - Set token mood: Happy");
+    Serial.println("  1 - Set token mood: Sad");
+    Serial.println("  2 - Set token mood: Calm");
+    Serial.println("  3 - Set token mood: Energetic");
+    Serial.println("  4 - Set token mood: Anxious");
+    Serial.println("  5 - Set token mood: Angry");
 #endif
 }
 
@@ -49,9 +56,11 @@ void loop() {
             game_test_transitions();
         } else if (cmd == 'n') {
             nfc_test();
+        } else if (cmd == 'a') {
+            activity_test_load();
         }
 #ifdef WOKWI_SIMULATION
-        else if (cmd == 'p' || cmd == 'r') {
+        else if (cmd == 'p' || cmd == 'r' || (cmd >= '0' && cmd <= '5')) {
             nfc_handle_mock_command(cmd);
         }
 #endif
