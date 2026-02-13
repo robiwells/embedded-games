@@ -16,6 +16,10 @@ static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
 static uint32_t debounce_start = 0;   // Token detection debounce timestamp
 
+// Token edge detection (Phase 3.1)
+static bool previous_token_present = false;  // Track previous token state for edge detection
+static bool token_processed = false;         // True if current token presentation already processed
+
 // Test sequence states
 typedef enum {
     TEST_IDLE = 0,           // Not running
@@ -203,23 +207,35 @@ static void idle_enter() {
 }
 
 static void idle_update() {
-    // Debounce token detection (100ms stable presence required)
-    if (nfc_token_detected()) {
+    bool current_token_present = nfc_token_detected();
+
+    // Detect falling edge: token was present, now removed
+    if (previous_token_present && !current_token_present) {
+        HAL_log_println("[IDLE] Token removed, ready for next presentation");
+        token_processed = false;
+        debounce_start = 0;
+    }
+
+    // Only trigger on rising edge (absent → present) or continuing debounce
+    bool token_newly_presented = !previous_token_present && current_token_present;
+    bool should_process = token_newly_presented || (debounce_start != 0);
+
+    if (current_token_present && !token_processed && should_process) {
         if (debounce_start == 0) {
-            // Start debounce timer (add 1 to ensure it's never 0)
             debounce_start = HAL_millis() + 1;
-            HAL_log_println("[IDLE] Token detected, debouncing...");
+            HAL_log_println("[IDLE] New token detected, debouncing...");
         } else if (HAL_millis() >= debounce_start + NFC_DEBOUNCE_TIME_MS - 1) {
             HAL_log_println("[IDLE] Token stable, transitioning to NFC_DETECTED");
+            token_processed = true;
             debounce_start = 0;
             game_transition_to(STATE_NFC_DETECTED);
         }
-    } else {
-        if (debounce_start != 0) {
-            HAL_log_println("[IDLE] Token removed during debounce");
-        }
+    } else if (!current_token_present && debounce_start != 0) {
+        HAL_log_println("[IDLE] Token removed during debounce");
         debounce_start = 0;
     }
+
+    previous_token_present = current_token_present;
 }
 
 static void idle_exit() {
