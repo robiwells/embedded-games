@@ -6,6 +6,7 @@
 #include "platform_hal.h"
 #include "activity_manager.h"
 #include "audio_player.h"
+#include "data_logger.h"
 #include <stdio.h>
 
 // State variables
@@ -19,6 +20,10 @@ static Activity* selected_activity = nullptr;     // Selected activity (Phase 5)
 static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
 static uint32_t debounce_start = 0;   // Token detection debounce timestamp
+
+// Session logging (Phase 8)
+static SessionLog current_session;
+static uint32_t activity_start_time = 0;
 
 // Token edge detection (Phase 3.1)
 static bool previous_token_present = false;  // Track previous token state for edge detection
@@ -365,12 +370,23 @@ static void playing_enter() {
     led_set_animation(LED_BREATHING);
     if (selected_activity) {
         audio_play(selected_activity->file_path);
+        activity_start_time = HAL_millis();
+        current_session.timestamp        = HAL_millis() / 1000;
+        current_session.mood             = current_mood;
+        current_session.activity_id      = selected_activity->id;
+        strncpy(current_session.activity_name, selected_activity->name, ACTIVITY_NAME_LENGTH - 1);
+        current_session.activity_name[ACTIVITY_NAME_LENGTH - 1] = '\0';
+        current_session.duration_seconds = 0;
+        current_session.completed        = false;
+        current_session.time_of_day      = activity_get_time_of_day();
     }
 }
 
 static void playing_update() {
     if (!audio_is_running()) {
         HAL_log_println("[PLAYING] Audio complete");
+        current_session.completed        = true;
+        current_session.duration_seconds = (HAL_millis() - activity_start_time) / 1000;
         game_transition_to(STATE_ACTIVITY_COMPLETE);
     }
 }
@@ -378,6 +394,10 @@ static void playing_update() {
 static void playing_exit() {
     HAL_log_println("[PLAYING] Exit: Stopping audio");
     audio_stop();
+    if (current_session.duration_seconds == 0) {
+        current_session.duration_seconds = (HAL_millis() - activity_start_time) / 1000;
+    }
+    logger_log_session(&current_session);
 }
 
 // =============================================================================

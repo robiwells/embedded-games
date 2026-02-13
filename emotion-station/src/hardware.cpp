@@ -4,6 +4,7 @@
 #include "nfc_handler.h"
 #include "activity_manager.h"
 #include "audio_player.h"
+#include "data_logger.h"
 #include <esp_task_wdt.h>
 #include <Arduino.h>
 
@@ -35,6 +36,11 @@ void hardware_init() {
     // Initialise audio (Phase 7)
     if (!audio_init()) {
         HAL_log_println("WARNING: Audio init failed");
+    }
+
+    // Initialise data logger (Phase 8)
+    if (!logger_init()) {
+        HAL_log_println("WARNING: Logger init failed");
     }
 
     HAL_log_println("Hardware initialisation complete");

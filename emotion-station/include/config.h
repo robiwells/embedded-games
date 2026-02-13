@@ -84,6 +84,16 @@ typedef struct {
     const char* display_name;
 } NfcMoodMapping;
 
+typedef struct {
+    uint32_t timestamp;      // Seconds since boot
+    MoodCategory mood;
+    uint8_t activity_id;
+    char activity_name[ACTIVITY_NAME_LENGTH];
+    uint16_t duration_seconds;
+    bool completed;
+    TimeOfDay time_of_day;
+} SessionLog;
+
 // Error codes (fully implemented in Phase 10)
 typedef enum {
     ERROR_NONE = 0,
