@@ -232,6 +232,57 @@ void test_state_entry_time_resets_on_transition(void) {
 }
 
 // =============================================================================
+// NFC Validation Routing Tests
+// =============================================================================
+
+void test_validating_with_invalid_uid_transitions_to_error(void) {
+    static const uint8_t uid_invalid[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    fake_set_millis(0);
+    mock_nfc_set_uid(uid_invalid);
+    mock_nfc_set_token_present(true);
+    mock_nfc_set_read_success(true);
+
+    // Drive through NFC_DETECTED to populate nfc_uid, then reach VALIDATING
+    game_transition_to(STATE_NFC_DETECTED);
+    fake_advance_time(200);  // Trigger retry delay
+    game_update();           // Reads UID → transitions to STATE_VALIDATING
+    TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
+
+    game_update();           // Validates UID → MOOD_UNKNOWN → STATE_ERROR
+    TEST_ASSERT_EQUAL(STATE_ERROR, game_get_current_state());
+}
+
+void test_validating_with_each_valid_mood_transitions_to_selecting(void) {
+    static const uint8_t uid_sad[]       = {0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1};
+    static const uint8_t uid_calm[]      = {0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2};
+    static const uint8_t uid_energetic[] = {0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3};
+    static const uint8_t uid_anxious[]   = {0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4};
+    static const uint8_t uid_angry[]     = {0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
+
+    const uint8_t* uids[] = {uid_sad, uid_calm, uid_energetic, uid_anxious, uid_angry};
+
+    for (int i = 0; i < 5; i++) {
+        fake_reset();
+        platform_hal = &platform_fake;
+        game_init();
+        fake_set_millis(0);
+
+        mock_nfc_set_uid(uids[i]);
+        mock_nfc_set_token_present(true);
+        mock_nfc_set_read_success(true);
+
+        // Drive through NFC_DETECTED to populate nfc_uid, then reach VALIDATING
+        game_transition_to(STATE_NFC_DETECTED);
+        fake_advance_time(200);  // Trigger retry delay
+        game_update();           // Reads UID → transitions to STATE_VALIDATING
+        TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
+
+        game_update();           // Validates UID → valid mood → STATE_SELECTING
+        TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
+    }
+}
+
+// =============================================================================
 // Test Runner
 // =============================================================================
 
@@ -252,6 +303,10 @@ int main(int argc, char **argv) {
     RUN_TEST(test_timing_survives_millis_overflow);
     RUN_TEST(test_rapid_transitions);
     RUN_TEST(test_state_entry_time_resets_on_transition);
+
+    // NFC validation routing
+    RUN_TEST(test_validating_with_invalid_uid_transitions_to_error);
+    RUN_TEST(test_validating_with_each_valid_mood_transitions_to_selecting);
 
     return UNITY_END();
 }
