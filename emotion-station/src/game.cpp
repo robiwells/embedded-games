@@ -2,10 +2,19 @@
 #include "led_controller.h"
 #include "config.h"
 #include "event_bus.h"
+#include "nfc_handler.h"
+#include "platform_hal.h"
+#include <stdio.h>
 
 // State variables
 static GameState current_state = STATE_IDLE;
 static unsigned long state_entry_time = 0;
+
+// NFC variables (Phase 3)
+static uint8_t nfc_uid[7];            // Last read UID
+static uint8_t attempt_count = 0;     // Retry attempt counter
+static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
+static uint32_t debounce_start = 0;   // Token detection debounce timestamp
 
 // Test sequence states
 typedef enum {
@@ -189,12 +198,27 @@ static void idle_enter() {
     HAL_log_println("[IDLE] Enter: LED pulsing white (eco mode)");
     led_set_animation(LED_IDLE);
     led_set_brightness(POWER_MODE_ECO);
+    nfc_reset_retry_state();
+    debounce_start = 0; // Reset debounce timer
 }
 
 static void idle_update() {
-    // Auto-transition after 5 seconds (testing only)
-    if (HAL_millis() - state_entry_time > 5000) {
-        game_transition_to(STATE_NFC_DETECTED);
+    // Debounce token detection (100ms stable presence required)
+    if (nfc_token_detected()) {
+        if (debounce_start == 0) {
+            // Start debounce timer (add 1 to ensure it's never 0)
+            debounce_start = HAL_millis() + 1;
+            HAL_log_println("[IDLE] Token detected, debouncing...");
+        } else if (HAL_millis() >= debounce_start + NFC_DEBOUNCE_TIME_MS - 1) {
+            HAL_log_println("[IDLE] Token stable, transitioning to NFC_DETECTED");
+            debounce_start = 0;
+            game_transition_to(STATE_NFC_DETECTED);
+        }
+    } else {
+        if (debounce_start != 0) {
+            HAL_log_println("[IDLE] Token removed during debounce");
+        }
+        debounce_start = 0;
     }
 }
 
@@ -210,17 +234,53 @@ static void nfc_detected_enter() {
     HAL_log_println("[NFC_DETECTED] Enter: Green flash");
     led_set_animation(LED_DETECTED);
     led_set_brightness(POWER_MODE_NORMAL);
+    attempt_count = 0;
+    retry_timestamp = HAL_millis();
 }
 
 static void nfc_detected_update() {
-    // Transition after 1 second
-    if (HAL_millis() - state_entry_time > 1000) {
+    // Retry logic with 200ms delays between attempts
+    if (HAL_millis() - retry_timestamp < NFC_RETRY_DELAY_MS) {
+        return; // Wait between attempts
+    }
+
+    // Log attempt number
+    char log_buf[60];
+    snprintf(log_buf, sizeof(log_buf), "[NFC_DETECTED] Attempt %d/%d",
+             attempt_count + 1, NFC_READ_ATTEMPTS);
+    HAL_log_println(log_buf);
+
+    if (nfc_read_uid(nfc_uid)) {
+        HAL_log_println("[NFC_DETECTED] UID read successful");
+
+        // Publish NFC_DETECTED event with UID and placeholder mood
+        struct {
+            uint8_t uid[7];
+            MoodCategory mood;
+        } nfc_data;
+
+        for (uint8_t i = 0; i < 7; i++) {
+            nfc_data.uid[i] = nfc_uid[i];
+        }
+        nfc_data.mood = MOOD_HAPPY; // Placeholder - will be mapped in Phase 4
+
+        event_bus_publish(NFC_DETECTED, PRIORITY_HIGH, &nfc_data, sizeof(nfc_data));
+
         game_transition_to(STATE_VALIDATING);
+    } else {
+        attempt_count++;
+        retry_timestamp = HAL_millis();
+
+        if (attempt_count >= NFC_READ_ATTEMPTS) {
+            HAL_log_println("[NFC_DETECTED] All attempts failed, transitioning to ERROR");
+            game_transition_to(STATE_ERROR);
+        }
     }
 }
 
 static void nfc_detected_exit() {
     HAL_log_println("[NFC_DETECTED] Exit");
+    attempt_count = 0;
 }
 
 // =============================================================================

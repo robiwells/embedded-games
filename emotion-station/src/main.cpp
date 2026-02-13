@@ -5,6 +5,7 @@
 #include "led_controller.h"
 #include "game.h"
 #include "event_bus.h"
+#include "nfc_handler.h"
 #include <esp_task_wdt.h>
 
 void setup() {
@@ -22,7 +23,13 @@ void setup() {
     // Publish boot complete event
     event_bus_publish(BOOT_COMPLETE, PRIORITY_LOW, NULL, 0);
 
-    Serial.println("\nPress 't' to run state machine test");
+    Serial.println("\nCommands:");
+    Serial.println("  t - Test state machine");
+    Serial.println("  n - Test NFC reader");
+#ifdef WOKWI_SIMULATION
+    Serial.println("  p - Present mock NFC token");
+    Serial.println("  r - Remove mock NFC token");
+#endif
 }
 
 void loop() {
@@ -35,11 +42,18 @@ void loop() {
     led_update();
     game_update();
 
-    // Test trigger from serial input
+    // Test triggers from serial input
     if (Serial.available()) {
         char cmd = Serial.read();
         if (cmd == 't') {
             game_test_transitions();
+        } else if (cmd == 'n') {
+            nfc_test();
         }
+#ifdef WOKWI_SIMULATION
+        else if (cmd == 'p' || cmd == 'r') {
+            nfc_handle_mock_command(cmd);
+        }
+#endif
     }
 }

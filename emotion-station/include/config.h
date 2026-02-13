@@ -18,6 +18,17 @@
 // Timing Constants
 #define WATCHDOG_TIMEOUT_MS 4000
 
+// I2C Pin Assignments (NFC)
+#define I2C_SDA_PIN 21
+#define I2C_SCL_PIN 22
+#define PN532_I2C_ADDRESS 0x24
+
+// NFC Retry Configuration
+#define NFC_READ_ATTEMPTS 3
+#define NFC_RETRY_DELAY_MS 200
+#define NFC_DEBOUNCE_TIME_MS 100
+#define NFC_READ_TIMEOUT_MS 1000
+
 // ========= ENUMS (Forward declarations for Phase 2.5 Event Bus) =========
 
 // Mood categories (fully implemented in Phase 3)

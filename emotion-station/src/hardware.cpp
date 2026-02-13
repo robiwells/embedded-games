@@ -1,6 +1,7 @@
 #include "hardware.h"
 #include "config.h"
 #include "platform_hal.h"
+#include "nfc_handler.h"
 #include <esp_task_wdt.h>
 #include <Arduino.h>
 
@@ -17,6 +18,12 @@ void hardware_init() {
     // Initialise watchdog timer (4 seconds)
     esp_task_wdt_init(WATCHDOG_TIMEOUT_MS / 1000, true);
     esp_task_wdt_add(NULL);
+
+    // Initialise NFC reader (Phase 3)
+    if (!nfc_init()) {
+        HAL_log_println("WARNING: NFC initialisation failed");
+        HAL_log_println("System will continue without NFC functionality");
+    }
 
     HAL_log_println("Hardware initialisation complete");
 }

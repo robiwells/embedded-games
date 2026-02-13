@@ -13,6 +13,7 @@
 
 // Include mocks BEFORE production code
 #include "../../test/mocks/platform_hal_fake.cpp"
+#include "../../test/mocks/nfc_handler_mock.cpp"
 
 // Include production code directly (test-only pattern)
 #include "../../src/event_bus.cpp"
