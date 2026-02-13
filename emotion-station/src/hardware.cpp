@@ -3,6 +3,7 @@
 #include "platform_hal.h"
 #include "nfc_handler.h"
 #include "activity_manager.h"
+#include "audio_player.h"
 #include <esp_task_wdt.h>
 #include <Arduino.h>
 
@@ -29,6 +30,11 @@ void hardware_init() {
     // Initialise activity manager (Phase 5)
     if (!activity_manager_init()) {
         HAL_log_println("WARNING: Activity manager init failed - using fallback");
+    }
+
+    // Initialise audio (Phase 7)
+    if (!audio_init()) {
+        HAL_log_println("WARNING: Audio init failed");
     }
 
     HAL_log_println("Hardware initialisation complete");

@@ -7,6 +7,7 @@
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "activity_manager.h"
+#include "audio_player.h"
 #include <esp_task_wdt.h>
 
 void setup() {
@@ -51,6 +52,7 @@ void loop() {
 
     hardware_heartbeat();
     led_update();
+    audio_loop();
     game_update();
 
     // Test triggers from serial input

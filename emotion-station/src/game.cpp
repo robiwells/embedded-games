@@ -5,6 +5,7 @@
 #include "nfc_handler.h"
 #include "platform_hal.h"
 #include "activity_manager.h"
+#include "audio_player.h"
 #include <stdio.h>
 
 // State variables
@@ -360,19 +361,23 @@ static void selecting_exit() {
 // =============================================================================
 
 static void playing_enter() {
-    HAL_log_println("[PLAYING] Enter: Breathing animation, audio playing");
+    HAL_log_println("[PLAYING] Enter: Starting audio");
     led_set_animation(LED_BREATHING);
+    if (selected_activity) {
+        audio_play(selected_activity->file_path);
+    }
 }
 
 static void playing_update() {
-    // Transition after 5 seconds
-    if (HAL_millis() - state_entry_time > 5000) {
+    if (!audio_is_running()) {
+        HAL_log_println("[PLAYING] Audio complete");
         game_transition_to(STATE_ACTIVITY_COMPLETE);
     }
 }
 
 static void playing_exit() {
-    HAL_log_println("[PLAYING] Exit");
+    HAL_log_println("[PLAYING] Exit: Stopping audio");
+    audio_stop();
 }
 
 // =============================================================================

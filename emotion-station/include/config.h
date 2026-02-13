@@ -30,6 +30,12 @@
 #define ACTIVITY_PATH_LENGTH  64
 #define ACTIVITY_TYPE_LENGTH  16
 
+// I2S Pin Assignments (Audio)
+#define I2S_BCLK_PIN  25
+#define I2S_LRC_PIN   26
+#define I2S_DOUT_PIN  27
+#define AUDIO_VOLUME  18   // 0-21 scale (18 = comfortable listening level)
+
 // I2C Pin Assignments (NFC)
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
