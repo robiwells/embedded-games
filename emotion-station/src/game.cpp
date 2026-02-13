@@ -337,7 +337,11 @@ static void selecting_enter() {
 }
 
 static void selecting_update() {
-    selected_activity = activity_select(current_mood, TIME_AFTERNOON);
+    TimeOfDay current_time = activity_get_time_of_day();
+    char time_buf[48];
+    snprintf(time_buf, sizeof(time_buf), "[SELECTING] Time of day: %s", activity_get_time_name(current_time));
+    HAL_log_println(time_buf);
+    selected_activity = activity_select(current_mood, current_time);
     if (selected_activity != nullptr) {
         HAL_log_println("[SELECTING] Activity found");
         game_transition_to(STATE_PLAYING_ACTIVITY);

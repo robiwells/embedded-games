@@ -36,6 +36,10 @@ void setup() {
     Serial.println("  3 - Set token mood: Energetic");
     Serial.println("  4 - Set token mood: Anxious");
     Serial.println("  5 - Set token mood: Angry");
+    Serial.println("  M - Jump to Morning (06:00)");
+    Serial.println("  A - Jump to Afternoon (12:00)");
+    Serial.println("  E - Jump to Evening (17:00)");
+    Serial.println("  B - Jump to Bedtime (21:00)");
 #endif
 }
 
@@ -62,7 +66,10 @@ void loop() {
 #ifdef WOKWI_SIMULATION
         else if (cmd == 'p' || cmd == 'r' || (cmd >= '0' && cmd <= '5')) {
             nfc_handle_mock_command(cmd);
-        }
+        } else if (cmd == 'M') { activity_set_sim_time(6);  Serial.println("Time: Morning");   }
+        else if (cmd == 'A') { activity_set_sim_time(12); Serial.println("Time: Afternoon"); }
+        else if (cmd == 'E') { activity_set_sim_time(17); Serial.println("Time: Evening");   }
+        else if (cmd == 'B') { activity_set_sim_time(21); Serial.println("Time: Bedtime");   }
 #endif
     }
 }

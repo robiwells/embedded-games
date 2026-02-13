@@ -11,6 +11,24 @@
     },
     {
       "id": 2,
+      "mood": "happy",
+      "name": "Joy Jump",
+      "file_path": "/audio/happy/joy_jump.mp3",
+      "duration_seconds": 90,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "movement"
+    },
+    {
+      "id": 3,
+      "mood": "happy",
+      "name": "Giggle Breath",
+      "file_path": "/audio/happy/giggle_breath.mp3",
+      "duration_seconds": 150,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "breathing"
+    },
+    {
+      "id": 4,
       "mood": "sad",
       "name": "Rainbow Breath",
       "file_path": "/audio/sad/17_rainbow_breath.mp3",
@@ -19,7 +37,25 @@
       "type": "breathing"
     },
     {
-      "id": 3,
+      "id": 5,
+      "mood": "sad",
+      "name": "Cosy Cloud",
+      "file_path": "/audio/sad/cosy_cloud.mp3",
+      "duration_seconds": 200,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "visualisation"
+    },
+    {
+      "id": 6,
+      "mood": "sad",
+      "name": "Sunshine Hug",
+      "file_path": "/audio/sad/sunshine_hug.mp3",
+      "duration_seconds": 160,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "visualisation"
+    },
+    {
+      "id": 7,
       "mood": "calm",
       "name": "Slow Breathing",
       "file_path": "/audio/calm/41_slow_breathing.mp3",
@@ -28,7 +64,25 @@
       "type": "breathing"
     },
     {
-      "id": 4,
+      "id": 8,
+      "mood": "calm",
+      "name": "Peaceful Pond",
+      "file_path": "/audio/calm/peaceful_pond.mp3",
+      "duration_seconds": 300,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "visualisation"
+    },
+    {
+      "id": 9,
+      "mood": "calm",
+      "name": "Gentle Stretch",
+      "file_path": "/audio/calm/gentle_stretch.mp3",
+      "duration_seconds": 180,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "movement"
+    },
+    {
+      "id": 10,
       "mood": "energetic",
       "name": "Movement One",
       "file_path": "/audio/energetic/movement_1.mp3",
@@ -37,7 +91,25 @@
       "type": "movement"
     },
     {
-      "id": 5,
+      "id": 11,
+      "mood": "energetic",
+      "name": "Star Jump Fun",
+      "file_path": "/audio/energetic/star_jump_fun.mp3",
+      "duration_seconds": 120,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "movement"
+    },
+    {
+      "id": 12,
+      "mood": "energetic",
+      "name": "Calm Down Breath",
+      "file_path": "/audio/energetic/calm_down_breath.mp3",
+      "duration_seconds": 180,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "breathing"
+    },
+    {
+      "id": 13,
       "mood": "anxious",
       "name": "Bubble Breath",
       "file_path": "/audio/anxious/9_bubble_breath.mp3",
@@ -46,13 +118,49 @@
       "type": "breathing"
     },
     {
-      "id": 6,
+      "id": 14,
+      "mood": "anxious",
+      "name": "Safe Place",
+      "file_path": "/audio/anxious/safe_place.mp3",
+      "duration_seconds": 240,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "visualisation"
+    },
+    {
+      "id": 15,
+      "mood": "anxious",
+      "name": "Five Senses",
+      "file_path": "/audio/anxious/five_senses.mp3",
+      "duration_seconds": 200,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "mindfulness"
+    },
+    {
+      "id": 16,
       "mood": "angry",
       "name": "Dragon Breath",
       "file_path": "/audio/angry/1_dragon_breath.mp3",
       "duration_seconds": 120,
       "time_of_day": ["morning", "afternoon", "evening"],
       "type": "breathing"
+    },
+    {
+      "id": 17,
+      "mood": "angry",
+      "name": "Volcano Stomp",
+      "file_path": "/audio/angry/volcano_stomp.mp3",
+      "duration_seconds": 90,
+      "time_of_day": ["morning", "afternoon"],
+      "type": "movement"
+    },
+    {
+      "id": 18,
+      "mood": "angry",
+      "name": "Cool Down Cloud",
+      "file_path": "/audio/angry/cool_down_cloud.mp3",
+      "duration_seconds": 180,
+      "time_of_day": ["evening", "bedtime"],
+      "type": "visualisation"
     }
   ]
 }

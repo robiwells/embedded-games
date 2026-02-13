@@ -14,3 +14,19 @@ Activity* activity_select(MoodCategory mood, TimeOfDay time) {
 uint8_t activity_get_count() { return 1; }
 
 void activity_test_load() {}
+
+TimeOfDay activity_get_time_of_day() { return TIME_AFTERNOON; }
+
+#ifdef WOKWI_SIMULATION
+void activity_set_sim_time(uint8_t hour) { (void)hour; }
+#endif
+
+const char* activity_get_time_name(TimeOfDay time) {
+    switch (time) {
+        case TIME_MORNING:   return "Morning";
+        case TIME_AFTERNOON: return "Afternoon";
+        case TIME_EVENING:   return "Evening";
+        case TIME_BEDTIME:   return "Bedtime";
+        default:             return "Unknown";
+    }
+}
