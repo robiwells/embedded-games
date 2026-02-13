@@ -44,6 +44,12 @@ typedef struct {
 
     // ========= Watchdog Functions =========
     void (*watchdog_reset)(void);       ///< Reset watchdog timer
+
+    // ========= Audio Functions =========
+    void (*audio_play)(const char* path);   ///< Start audio playback from SD
+    void (*audio_stop)(void);               ///< Stop current playback
+    bool (*audio_is_running)(void);         ///< True if audio currently playing
+    void (*audio_loop)(void);               ///< Must be called every loop iteration
 } PlatformHAL;
 
 /**
@@ -75,6 +81,10 @@ extern PlatformHAL* platform_hal;
 #define HAL_digital_write(pin, val) platform_hal->digital_write(pin, val)
 #define HAL_digital_read(pin) platform_hal->digital_read(pin)
 #define HAL_watchdog_reset() platform_hal->watchdog_reset()
+#define HAL_audio_play(path) platform_hal->audio_play(path)
+#define HAL_audio_stop() platform_hal->audio_stop()
+#define HAL_audio_is_running() platform_hal->audio_is_running()
+#define HAL_audio_loop() platform_hal->audio_loop()
 
 // ========= Platform Implementations =========
 
@@ -132,6 +142,18 @@ uint32_t fake_get_led_color(uint16_t n);
  * @return Brightness value (0-255)
  */
 uint8_t fake_get_led_brightness(void);
+
+/**
+ * @brief Simulate audio playing or finished
+ * @param running True if audio should appear to be playing
+ */
+void fake_set_audio_running(bool running);
+
+/**
+ * @brief Get the last audio path passed to audio_play
+ * @return Pointer to path string (or empty string if none)
+ */
+const char* fake_get_last_audio_path(void);
 #endif // UNIT_TEST
 
 #endif // PLATFORM_HAL_H

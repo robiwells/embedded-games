@@ -24,6 +24,10 @@ static uint32_t fake_led_colors[MAX_LEDS] = {0};
 static uint8_t fake_led_brightness = 255;
 static uint8_t fake_gpio_state[256] = {0}; // Pin states (0=LOW, 1=HIGH)
 
+// Audio state
+static bool fake_audio_running = false;
+static char fake_audio_path[128] = {0};
+
 // ========= Test Utilities =========
 
 void fake_reset(void) {
@@ -32,6 +36,8 @@ void fake_reset(void) {
     memset(fake_led_colors, 0, sizeof(fake_led_colors));
     fake_led_brightness = 255;
     memset(fake_gpio_state, 0, sizeof(fake_gpio_state));
+    fake_audio_running = false;
+    memset(fake_audio_path, 0, sizeof(fake_audio_path));
 }
 
 void fake_set_millis(unsigned long ms) {
@@ -55,6 +61,14 @@ uint32_t fake_get_led_color(uint16_t n) {
 
 uint8_t fake_get_led_brightness(void) {
     return fake_led_brightness;
+}
+
+void fake_set_audio_running(bool running) {
+    fake_audio_running = running;
+}
+
+const char* fake_get_last_audio_path(void) {
+    return fake_audio_path;
 }
 
 // ========= Time Functions =========
@@ -143,6 +157,27 @@ static void fake_watchdog_reset(void) {
     // No-op (no watchdog in tests)
 }
 
+// ========= Audio Functions =========
+
+static void fake_audio_play(const char* path) {
+    if (path) {
+        strncpy(fake_audio_path, path, sizeof(fake_audio_path) - 1);
+    }
+    fake_audio_running = true;
+}
+
+static void fake_audio_stop(void) {
+    fake_audio_running = false;
+}
+
+static bool fake_audio_is_running(void) {
+    return fake_audio_running;
+}
+
+static void fake_audio_loop(void) {
+    // No-op
+}
+
 // ========= Platform HAL Instance =========
 
 /**
@@ -174,7 +209,13 @@ PlatformHAL platform_fake = {
     .digital_read = fake_digital_read,
 
     // Watchdog
-    .watchdog_reset = fake_watchdog_reset
+    .watchdog_reset = fake_watchdog_reset,
+
+    // Audio
+    .audio_play = fake_audio_play,
+    .audio_stop = fake_audio_stop,
+    .audio_is_running = fake_audio_is_running,
+    .audio_loop = fake_audio_loop
 };
 
 // Global HAL pointer (defined here for tests)

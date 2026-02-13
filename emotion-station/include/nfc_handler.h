@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "config.h"
 
 /**
  * @brief NFC retry state tracking
@@ -79,6 +80,22 @@ void nfc_reset_retry_state();
  * Call via serial command 'n'.
  */
 void nfc_test();
+
+/**
+ * @brief Validate a 7-byte UID against the known mood mapping table
+ *
+ * @param uid 7-byte UID read from NFC tag
+ * @return MoodCategory if found, MOOD_UNKNOWN if not in mapping table
+ */
+MoodCategory nfc_validate_uid(const uint8_t uid[7]);
+
+/**
+ * @brief Get display name for a mood category
+ *
+ * @param mood MoodCategory to look up
+ * @return Display name string, or "Unknown" if not found
+ */
+const char* nfc_get_mood_name(MoodCategory mood);
 
 #ifdef WOKWI_SIMULATION
 /**

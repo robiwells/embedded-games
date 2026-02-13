@@ -42,6 +42,42 @@ void nfc_test() {
     // No-op in mock
 }
 
+// UID → Mood mapping table (duplicated from nfc_handler.cpp for mock isolation)
+static const NfcMoodMapping nfc_mappings[] = {
+    {{0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6}, MOOD_HAPPY,     "Happy"},
+    {{0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1}, MOOD_SAD,       "Sad"},
+    {{0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2}, MOOD_CALM,      "Calm"},
+    {{0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3}, MOOD_ENERGETIC, "Energetic"},
+    {{0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4}, MOOD_ANXIOUS,   "Anxious"},
+    {{0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5}, MOOD_ANGRY,     "Angry"},
+};
+#define NUM_MAPPINGS (sizeof(nfc_mappings) / sizeof(nfc_mappings[0]))
+
+MoodCategory nfc_validate_uid(const uint8_t uid[7]) {
+    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
+        bool match = true;
+        for (uint8_t j = 0; j < 7; j++) {
+            if (uid[j] != nfc_mappings[i].uid[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return nfc_mappings[i].mood;
+        }
+    }
+    return MOOD_UNKNOWN;
+}
+
+const char* nfc_get_mood_name(MoodCategory mood) {
+    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
+        if (nfc_mappings[i].mood == mood) {
+            return nfc_mappings[i].display_name;
+        }
+    }
+    return "Unknown";
+}
+
 // Test control functions
 void mock_nfc_set_token_present(bool present) {
     mock_token_present = present;

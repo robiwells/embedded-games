@@ -99,6 +99,28 @@ static void real_watchdog_reset(void) {
     esp_task_wdt_reset();
 }
 
+// ========= Audio Functions (Phase 4) =========
+// Stub implementations — will call ESP32-audioI2S Audio object when Phase 4 connects
+
+static void real_audio_play(const char* path) {
+    // Phase 4: audio.connecttoFS(SD, path);
+    Serial.print("[AUDIO] play: ");
+    Serial.println(path);
+}
+
+static void real_audio_stop(void) {
+    // Phase 4: audio.stopSong();
+}
+
+static bool real_audio_is_running(void) {
+    // Phase 4: return audio.isRunning();
+    return false;
+}
+
+static void real_audio_loop(void) {
+    // Phase 4: audio.loop();
+}
+
 // ========= Platform HAL Instance =========
 
 /**
@@ -130,7 +152,13 @@ PlatformHAL platform_real = {
     .digital_read = real_digital_read,
 
     // Watchdog
-    .watchdog_reset = real_watchdog_reset
+    .watchdog_reset = real_watchdog_reset,
+
+    // Audio
+    .audio_play = real_audio_play,
+    .audio_stop = real_audio_stop,
+    .audio_is_running = real_audio_is_running,
+    .audio_loop = real_audio_loop
 };
 
 // Global HAL pointer (set in main.cpp)

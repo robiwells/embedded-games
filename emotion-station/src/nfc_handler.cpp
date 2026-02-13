@@ -20,13 +20,25 @@
 
 static bool mock_token_present = false;
 static bool nfc_ready = false;
-static uint8_t mock_uid[7] = {0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6};
+static uint8_t mock_uid_index = 0;
+
+static const uint8_t test_uids[][7] = {
+    {0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6},  // 0: Happy
+    {0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1},  // 1: Sad
+    {0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2},  // 2: Calm
+    {0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3},  // 3: Energetic
+    {0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4},  // 4: Anxious
+    {0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5},  // 5: Angry
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},   // 6: Invalid
+};
 
 bool nfc_init() {
     HAL_log_println("NFC: MOCK MODE (Wokwi simulation)");
     HAL_log_println("Use serial commands:");
-    HAL_log_println("  'p' - Present token");
-    HAL_log_println("  'r' - Remove token");
+    HAL_log_println("  '0'-'5' - Select mood UID (0=Happy,1=Sad,2=Calm,3=Energetic,4=Anxious,5=Angry)");
+    HAL_log_println("  '6'     - Select invalid UID (triggers ERROR)");
+    HAL_log_println("  'p'     - Present token");
+    HAL_log_println("  'r'     - Remove token");
     nfc_ready = true;
     return true;
 }
@@ -40,12 +52,12 @@ bool nfc_read_uid(uint8_t uid[7]) {
         return false;
     }
 
-    // Copy mock UID
+    // Copy selected test UID
     for (uint8_t i = 0; i < 7; i++) {
-        uid[i] = mock_uid[i];
+        uid[i] = test_uids[mock_uid_index][i];
     }
 
-    // Log mock UID
+    // Log UID
     HAL_log_print("NFC: MOCK UID: ");
     char hex_buf[24];
     snprintf(hex_buf, sizeof(hex_buf), "%02X %02X %02X %02X %02X %02X %02X",
@@ -68,7 +80,12 @@ void nfc_test() {
 }
 
 void nfc_handle_mock_command(char cmd) {
-    if (cmd == 'p') {
+    if (cmd >= '0' && cmd <= '6') {
+        mock_uid_index = (uint8_t)(cmd - '0');
+        const char* mood_names[] = {"Happy", "Sad", "Calm", "Energetic", "Anxious", "Angry", "Invalid"};
+        HAL_log_print("NFC: UID set to index ");
+        HAL_log_println(mood_names[mock_uid_index]);
+    } else if (cmd == 'p') {
         mock_token_present = true;
         HAL_log_println("NFC: MOCK token present");
     } else if (cmd == 'r') {
@@ -213,3 +230,42 @@ void nfc_test() {
 }
 
 #endif // WOKWI_SIMULATION
+
+// ============================================================================
+// SHARED: UID → MOOD MAPPING TABLE (used by both builds)
+// ============================================================================
+
+static const NfcMoodMapping nfc_mappings[] = {
+    {{0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6}, MOOD_HAPPY,     "Happy"},
+    {{0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1}, MOOD_SAD,       "Sad"},
+    {{0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2}, MOOD_CALM,      "Calm"},
+    {{0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3}, MOOD_ENERGETIC, "Energetic"},
+    {{0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4}, MOOD_ANXIOUS,   "Anxious"},
+    {{0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5}, MOOD_ANGRY,     "Angry"},
+};
+#define NUM_MAPPINGS (sizeof(nfc_mappings) / sizeof(nfc_mappings[0]))
+
+MoodCategory nfc_validate_uid(const uint8_t uid[7]) {
+    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
+        bool match = true;
+        for (uint8_t j = 0; j < 7; j++) {
+            if (uid[j] != nfc_mappings[i].uid[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return nfc_mappings[i].mood;
+        }
+    }
+    return MOOD_UNKNOWN;
+}
+
+const char* nfc_get_mood_name(MoodCategory mood) {
+    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
+        if (nfc_mappings[i].mood == mood) {
+            return nfc_mappings[i].display_name;
+        }
+    }
+    return "Unknown";
+}

@@ -93,17 +93,11 @@ void test_nfc_detected_transitions_after_1_second(void) {
     TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
 }
 
-void test_validating_transitions_after_200ms(void) {
+void test_validating_transitions_immediately_on_valid_uid(void) {
+    // Default mock UID maps to MOOD_HAPPY — validation is immediate (no timer)
     fake_set_millis(0);
     game_transition_to(STATE_VALIDATING);
 
-    // Not yet (> 200 needed)
-    fake_advance_time(200);
-    game_update();
-    TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
-
-    // Now
-    fake_advance_time(1);
     game_update();
     TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
 }
@@ -247,7 +241,7 @@ int main(int argc, char **argv) {
     // State timeout tests
     RUN_TEST(test_idle_auto_transitions_after_5_seconds);
     RUN_TEST(test_nfc_detected_transitions_after_1_second);
-    RUN_TEST(test_validating_transitions_after_200ms);
+    RUN_TEST(test_validating_transitions_immediately_on_valid_uid);
     RUN_TEST(test_selecting_transitions_after_500ms);
     RUN_TEST(test_playing_transitions_after_5_seconds);
     RUN_TEST(test_activity_complete_transitions_after_2_seconds);

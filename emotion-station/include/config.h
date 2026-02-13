@@ -39,8 +39,15 @@ typedef enum {
     MOOD_ENERGETIC,
     MOOD_ANXIOUS,
     MOOD_ANGRY,
-    NUM_MOODS
+    NUM_MOODS,
+    MOOD_UNKNOWN = 255
 } MoodCategory;
+
+typedef struct {
+    uint8_t uid[7];
+    MoodCategory mood;
+    const char* display_name;
+} NfcMoodMapping;
 
 // Error codes (fully implemented in Phase 10)
 typedef enum {
@@ -57,5 +64,17 @@ typedef enum {
     ERROR_UNKNOWN,
     NUM_ERROR_CODES
 } ErrorCode;
+
+// Fallback audio paths (used if activities.json fails to load)
+// Indexed by MoodCategory enum — must match order exactly
+#define FALLBACK_AUDIO_COUNT NUM_MOODS
+static const char* const FALLBACK_AUDIO_PATHS[NUM_MOODS] = {
+    "/audio/happy/25_sunshine_dance.mp3",    // MOOD_HAPPY
+    "/audio/sad/17_rainbow_breath.mp3",       // MOOD_SAD
+    "/audio/calm/41_slow_breathing.mp3",      // MOOD_CALM
+    "/audio/energetic/movement_1.mp3",        // MOOD_ENERGETIC (placeholder — no content defined yet)
+    "/audio/anxious/9_bubble_breath.mp3",     // MOOD_ANXIOUS
+    "/audio/angry/1_dragon_breath.mp3",       // MOOD_ANGRY
+};
 
 #endif

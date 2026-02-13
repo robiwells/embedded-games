@@ -12,6 +12,7 @@ static unsigned long state_entry_time = 0;
 
 // NFC variables (Phase 3)
 static uint8_t nfc_uid[7];            // Last read UID
+static MoodCategory current_mood = MOOD_UNKNOWN;  // Mood mapped from UID (Phase 4)
 static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
 static uint32_t debounce_start = 0;   // Token detection debounce timestamp
@@ -305,11 +306,17 @@ static void nfc_detected_exit() {
 
 static void validating_enter() {
     HAL_log_println("[VALIDATING] Enter: Validating UID");
+    current_mood = MOOD_UNKNOWN;
 }
 
 static void validating_update() {
-    // Transition after 200ms
-    if (HAL_millis() - state_entry_time > 200) {
+    current_mood = nfc_validate_uid(nfc_uid);
+    if (current_mood == MOOD_UNKNOWN) {
+        HAL_log_println("[VALIDATING] Invalid UID - transitioning to ERROR");
+        game_transition_to(STATE_ERROR);
+    } else {
+        HAL_log_print("[VALIDATING] Valid mood: ");
+        HAL_log_println(nfc_get_mood_name(current_mood));
         game_transition_to(STATE_SELECTING);
     }
 }
