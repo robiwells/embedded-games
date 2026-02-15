@@ -10,6 +10,39 @@
 #include "audio_player.h"
 #include <esp_task_wdt.h>
 #include <esp_system.h>
+#ifndef WOKWI_SIMULATION
+#include <time.h>
+#endif
+
+#ifndef WOKWI_SIMULATION
+static void rtc_init() {
+    // Seed ESP32 RTC with compile-time timestamp so time-of-day filtering works
+    // without network or an external RTC module. Time resets on each power cycle.
+    struct tm timeinfo = {};
+    // __DATE__ is "Mmm DD YYYY", __TIME__ is "HH:MM:SS"
+    // Use strptime-style manual parse via sscanf for portability
+    int year, month, day, hour, min, sec;
+    const char* months = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    char mon_str[4] = {};
+    sscanf(__DATE__, "%3s %d %d", mon_str, &day, &year);
+    month = ((strstr(months, mon_str) - months) / 3) + 1;
+    sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
+
+    timeinfo.tm_year = year - 1900;
+    timeinfo.tm_mon  = month - 1;
+    timeinfo.tm_mday = day;
+    timeinfo.tm_hour = hour;
+    timeinfo.tm_min  = min;
+    timeinfo.tm_sec  = sec;
+
+    time_t t = mktime(&timeinfo);
+    struct timeval now_tv = { .tv_sec = t };
+    settimeofday(&now_tv, NULL);
+
+    Serial.print("RTC: Set to ");
+    Serial.print(asctime(&timeinfo));
+}
+#endif
 
 void setup() {
     // Initialise HAL first (must be done before any other modules)
@@ -20,6 +53,9 @@ void setup() {
 #endif
 
     hardware_init();
+#ifndef WOKWI_SIMULATION
+    rtc_init();
+#endif
     led_init();
 
     // Initialise event bus (Phase 2.5)
@@ -40,6 +76,9 @@ void setup() {
     Serial.println("\nCommands:");
     Serial.println("  t - Test state machine");
     Serial.println("  n - Test NFC reader");
+#ifndef WOKWI_SIMULATION
+    Serial.println("  SETTIME YYYY-MM-DD HH:MM:SS - Set RTC time");
+#endif
 #ifdef WOKWI_SIMULATION
     Serial.println("  p - Present mock NFC token");
     Serial.println("  r - Remove mock NFC token");
@@ -80,6 +119,32 @@ void loop() {
         } else if (cmd == 'a') {
             activity_test_load();
         }
+#ifndef WOKWI_SIMULATION
+        else if (cmd == 'S') {
+            // Read rest of line: expect "ETTIME YYYY-MM-DD HH:MM:SS"
+            String rest = Serial.readStringUntil('\n');
+            String full = String("S") + rest;
+            full.trim();
+            int year, month, day, hour, min, sec;
+            if (sscanf(full.c_str(), "SETTIME %d-%d-%d %d:%d:%d",
+                       &year, &month, &day, &hour, &min, &sec) == 6) {
+                struct tm timeinfo = {};
+                timeinfo.tm_year = year - 1900;
+                timeinfo.tm_mon  = month - 1;
+                timeinfo.tm_mday = day;
+                timeinfo.tm_hour = hour;
+                timeinfo.tm_min  = min;
+                timeinfo.tm_sec  = sec;
+                time_t t = mktime(&timeinfo);
+                struct timeval now_tv = { .tv_sec = t };
+                settimeofday(&now_tv, NULL);
+                Serial.print("RTC: Time set to ");
+                Serial.print(asctime(&timeinfo));
+            } else {
+                Serial.println("ERROR: Format is SETTIME YYYY-MM-DD HH:MM:SS");
+            }
+        }
+#endif
 #ifdef WOKWI_SIMULATION
         else if (cmd == 'p' || cmd == 'r' || (cmd >= '0' && cmd <= '5')) {
             nfc_handle_mock_command(cmd);

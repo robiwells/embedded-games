@@ -5,6 +5,7 @@
 #ifndef WOKWI_SIMULATION
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <time.h>
 #endif
 
 static Activity activities[MAX_ACTIVITIES];
@@ -185,16 +186,34 @@ bool activity_manager_init() {
 // ---------------------------------------------------------------------------
 
 TimeOfDay activity_get_time_of_day() {
+    uint8_t hour;
+
 #ifdef WOKWI_SIMULATION
     // 1 real minute = 1 simulated hour, wraps at 24
-    uint32_t simulated_hour = ((HAL_millis() / 60000UL) + s_sim_time_offset_hours) % 24;
-    if (simulated_hour >= 6  && simulated_hour < 12) return TIME_MORNING;
-    if (simulated_hour >= 12 && simulated_hour < 17) return TIME_AFTERNOON;
-    if (simulated_hour >= 17 && simulated_hour < 21) return TIME_EVENING;
-    return TIME_BEDTIME;
+    hour = (uint8_t)(((HAL_millis() / 60000UL) + s_sim_time_offset_hours) % 24);
+    HAL_log_print("ActivityMgr: Simulated hour: ");
+    HAL_log_println(String(hour).c_str());
 #else
-    return TIME_AFTERNOON; // Hardcoded until Phase 6.5 adds RTC
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    hour = (uint8_t)timeinfo.tm_hour;
+    Serial.print("ActivityMgr: RTC hour: ");
+    Serial.print(hour);
+    Serial.print(" (");
+    Serial.print(timeinfo.tm_year + 1900);
+    Serial.print("-");
+    Serial.print(timeinfo.tm_mon + 1);
+    Serial.print("-");
+    Serial.print(timeinfo.tm_mday);
+    Serial.println(")");
 #endif
+
+    if (hour >= 6  && hour < 12) return TIME_MORNING;
+    if (hour >= 12 && hour < 17) return TIME_AFTERNOON;
+    if (hour >= 17 && hour < 21) return TIME_EVENING;
+    return TIME_BEDTIME;
 }
 
 const char* activity_get_time_name(TimeOfDay time) {
