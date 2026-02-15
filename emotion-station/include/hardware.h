@@ -5,6 +5,7 @@
 
 void hardware_init();
 void hardware_heartbeat();
+void hardware_enter_deep_sleep();
 
 float battery_get_voltage();
 bool  battery_is_low();

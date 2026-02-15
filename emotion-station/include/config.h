@@ -102,21 +102,32 @@ typedef struct {
     TimeOfDay time_of_day;
 } SessionLog;
 
-// Error codes (fully implemented in Phase 10)
+// Error codes
 typedef enum {
     ERROR_NONE = 0,
-    ERROR_NFC_TIMEOUT,
-    ERROR_NFC_READ_FAILED,
-    ERROR_INVALID_UID,
+    ERROR_SD_INIT_FAILED,
+    ERROR_SD_READ_FAILED,
+    ERROR_NFC_INIT_FAILED,
+    ERROR_NFC_READ_TIMEOUT,
     ERROR_AUDIO_INIT_FAILED,
-    ERROR_AUDIO_PLAYBACK_FAILED,
-    ERROR_SD_CARD_MISSING,
-    ERROR_ACTIVITY_NOT_FOUND,
+    ERROR_AUDIO_FILE_NOT_FOUND,
+    ERROR_JSON_PARSE_FAILED,
+    ERROR_INVALID_UID,
+    ERROR_NO_ACTIVITIES,
     ERROR_BATTERY_CRITICAL,
-    ERROR_HARDWARE_FAULT,
-    ERROR_UNKNOWN,
-    NUM_ERROR_CODES
+    ERROR_WATCHDOG_RESET
 } ErrorCode;
+
+// Debug configuration (set to 0 for production build)
+#define DEBUG_SERIAL 1
+
+#if DEBUG_SERIAL
+    #define DEBUG_PRINT(x)   Serial.print(x)
+    #define DEBUG_PRINTLN(x) Serial.println(x)
+#else
+    #define DEBUG_PRINT(x)
+    #define DEBUG_PRINTLN(x)
+#endif
 
 // Fallback audio paths (used if activities.json fails to load)
 // Indexed by MoodCategory enum — must match order exactly

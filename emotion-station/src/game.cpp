@@ -175,6 +175,25 @@ void game_transition_to(GameState new_state) {
 // PUBLIC API FUNCTIONS
 // =============================================================================
 
+void handle_error(ErrorCode error) {
+    HAL_log_print("[ERROR] ");
+    switch (error) {
+        case ERROR_SD_INIT_FAILED:        HAL_log_println("SD card initialisation failed");        break;
+        case ERROR_SD_READ_FAILED:        HAL_log_println("SD card read failed");                  break;
+        case ERROR_NFC_INIT_FAILED:       HAL_log_println("NFC initialisation failed");            break;
+        case ERROR_NFC_READ_TIMEOUT:      HAL_log_println("NFC read timeout after 3 attempts");    break;
+        case ERROR_AUDIO_INIT_FAILED:     HAL_log_println("Audio initialisation failed");          break;
+        case ERROR_AUDIO_FILE_NOT_FOUND:  HAL_log_println("Audio file not found");                 break;
+        case ERROR_JSON_PARSE_FAILED:     HAL_log_println("JSON parse failed");                    break;
+        case ERROR_INVALID_UID:           HAL_log_println("NFC UID not recognised");               break;
+        case ERROR_NO_ACTIVITIES:         HAL_log_println("No activities available for mood");     break;
+        case ERROR_BATTERY_CRITICAL:      HAL_log_println("Battery critical");                     break;
+        case ERROR_WATCHDOG_RESET:        HAL_log_println("Watchdog reset detected");              break;
+        default:                          HAL_log_println("Unknown error");                        break;
+    }
+    game_transition_to(STATE_ERROR);
+}
+
 void game_init() {
     HAL_log_println("Game state machine initialising");
     current_state = STATE_IDLE;
@@ -470,7 +489,8 @@ static void low_battery_update() {
         float voltage = battery_get_voltage();
         HAL_log_println("[LOW_BATTERY] Checking voltage");
         if (battery_is_critical()) {
-            HAL_log_println("[LOW_BATTERY] CRITICAL - charge immediately");
+            HAL_log_println("[LOW_BATTERY] CRITICAL - entering deep sleep");
+            hardware_enter_deep_sleep();
         } else if (voltage > BATTERY_RECOVERY_THRESHOLD) {
             HAL_log_println("[LOW_BATTERY] Voltage recovered, returning to IDLE");
             game_transition_to(STATE_IDLE);

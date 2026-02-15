@@ -6,6 +6,8 @@
 #include "audio_player.h"
 #include "data_logger.h"
 #include <esp_task_wdt.h>
+#include <esp_sleep.h>
+#include <esp_system.h>
 #include <Arduino.h>
 
 static float last_battery_voltage = 4.2f;
@@ -82,6 +84,16 @@ void hardware_init() {
     Serial.println("V");
 
     HAL_log_println("Hardware initialisation complete");
+}
+
+void hardware_enter_deep_sleep() {
+#ifdef WOKWI_SIMULATION
+    HAL_log_println("[DEEP_SLEEP] Simulated deep sleep (Wokwi)");
+#else
+    HAL_log_println("[DEEP_SLEEP] Entering deep sleep mode...");
+    Serial.flush();
+    esp_deep_sleep_start();
+#endif
 }
 
 void hardware_heartbeat() {

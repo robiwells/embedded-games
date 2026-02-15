@@ -33,5 +33,6 @@ void game_update();                         // Update current state (call every 
 void game_transition_to(GameState state);   // Centralised state transitions
 GameState game_get_current_state();         // Query current state
 void game_test_transitions();               // Test function for verification
+void handle_error(ErrorCode error);         // Log error and transition to STATE_ERROR
 
 #endif // GAME_H

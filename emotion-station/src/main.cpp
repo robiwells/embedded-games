@@ -9,10 +9,15 @@
 #include "activity_manager.h"
 #include "audio_player.h"
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 
 void setup() {
     // Initialise HAL first (must be done before any other modules)
     platform_hal = &platform_real;
+
+#ifndef WOKWI_SIMULATION
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+#endif
 
     hardware_init();
     led_init();
@@ -21,6 +26,13 @@ void setup() {
     event_bus_init();
 
     game_init();
+
+#ifndef WOKWI_SIMULATION
+    if (reset_reason == ESP_RST_WDT || reset_reason == ESP_RST_TASK_WDT) {
+        Serial.println("WARNING: Watchdog reset detected!");
+        handle_error(ERROR_WATCHDOG_RESET);
+    }
+#endif
 
     // Publish boot complete event
     event_bus_publish(BOOT_COMPLETE, PRIORITY_LOW, NULL, 0);
@@ -46,6 +58,8 @@ void setup() {
 }
 
 void loop() {
+    uint32_t loop_start = micros();
+
     HAL_watchdog_reset();
 
     // Process events FIRST (before state machine update) - Phase 2.5
@@ -80,5 +94,28 @@ void loop() {
             b_step++;
         }
 #endif
+    }
+
+    // Watchdog timing analysis
+    uint32_t loop_duration = micros() - loop_start;
+    static uint32_t max_loop_time = 0;
+    static uint32_t total_loops = 0;
+    static uint64_t total_time = 0;
+    total_loops++;
+    total_time += loop_duration;
+    if (loop_duration > max_loop_time) {
+        max_loop_time = loop_duration;
+        Serial.print("[TIMING] New max loop time: ");
+        Serial.print(max_loop_time);
+        Serial.println(" us");
+    }
+    static uint32_t last_timing_report = 0;
+    if (millis() - last_timing_report >= 10000) {
+        last_timing_report = millis();
+        Serial.println("\n=== LOOP TIMING ===");
+        Serial.print("Avg: "); Serial.print((uint32_t)(total_time / total_loops)); Serial.println(" us");
+        Serial.print("Max: "); Serial.print(max_loop_time); Serial.println(" us");
+        Serial.print("WDT margin: "); Serial.print(4000.0f - (max_loop_time / 1000.0f)); Serial.println(" ms");
+        Serial.println("===================\n");
     }
 }
