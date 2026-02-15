@@ -8,6 +8,35 @@
 #include <esp_task_wdt.h>
 #include <Arduino.h>
 
+static float last_battery_voltage = 4.2f;
+
+#ifdef WOKWI_SIMULATION
+
+float battery_get_voltage() { return last_battery_voltage; }
+bool  battery_is_low()      { return last_battery_voltage < BATTERY_LOW_THRESHOLD; }
+bool  battery_is_critical() { return last_battery_voltage < BATTERY_CRITICAL_THRESHOLD; }
+
+void battery_set_mock_voltage(float voltage) {
+    last_battery_voltage = voltage;
+    HAL_log_print("[BATTERY] MOCK voltage set to ");
+    Serial.print(voltage);
+    Serial.println("V");
+}
+
+#else // Real hardware
+
+float battery_get_voltage() {
+    int adc_value = analogRead(BATTERY_ADC_PIN);
+    float voltage = (adc_value / 4095.0f) * 3.3f * BATTERY_VOLTAGE_DIVIDER_RATIO;
+    last_battery_voltage = (last_battery_voltage * 0.9f) + (voltage * 0.1f);
+    return last_battery_voltage;
+}
+
+bool battery_is_low()      { return last_battery_voltage < BATTERY_LOW_THRESHOLD; }
+bool battery_is_critical() { return last_battery_voltage < BATTERY_CRITICAL_THRESHOLD; }
+
+#endif // WOKWI_SIMULATION
+
 void hardware_init() {
     Serial.begin(115200);
     // Small delay for serial stability (Wokwi doesn't need this but doesn't hurt)
@@ -42,6 +71,15 @@ void hardware_init() {
     if (!logger_init()) {
         HAL_log_println("WARNING: Logger init failed");
     }
+
+#ifndef WOKWI_SIMULATION
+    pinMode(BATTERY_ADC_PIN, INPUT);
+    analogSetAttenuation(ADC_11db);
+#endif
+    battery_get_voltage();  // Prime the smoothing filter
+    HAL_log_print("[BATTERY] Initial voltage: ");
+    Serial.print(last_battery_voltage);
+    Serial.println("V");
 
     HAL_log_println("Hardware initialisation complete");
 }

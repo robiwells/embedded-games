@@ -41,6 +41,7 @@ void setup() {
     Serial.println("  A - Jump to Afternoon (12:00)");
     Serial.println("  E - Jump to Evening (17:00)");
     Serial.println("  B - Jump to Bedtime (21:00)");
+    Serial.println("  b - Cycle battery voltage (4.2 → 3.5 → 3.4 → 3.3 → ...)");
 #endif
 }
 
@@ -72,6 +73,12 @@ void loop() {
         else if (cmd == 'A') { activity_set_sim_time(12); Serial.println("Time: Afternoon"); }
         else if (cmd == 'E') { activity_set_sim_time(17); Serial.println("Time: Evening");   }
         else if (cmd == 'B') { activity_set_sim_time(21); Serial.println("Time: Bedtime");   }
+        else if (cmd == 'b') {
+            static uint8_t b_step = 0;
+            float voltages[] = {4.2f, 3.5f, 3.4f, 3.3f};
+            battery_set_mock_voltage(voltages[b_step % 4]);
+            b_step++;
+        }
 #endif
     }
 }

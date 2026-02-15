@@ -15,6 +15,14 @@
 #define LED_BRIGHTNESS_IDLE 128        // 50% brightness during idle
 #define LED_BRIGHTNESS_LOW_BATTERY 64  // 25% brightness when battery low
 
+// Battery Monitoring
+#define BATTERY_ADC_PIN                34
+#define BATTERY_VOLTAGE_DIVIDER_RATIO  2.0f   // 2× 10kΩ voltage divider
+#define BATTERY_LOW_THRESHOLD          3.4f   // V — trigger LOW_BATTERY state
+#define BATTERY_CRITICAL_THRESHOLD     3.3f   // V — deep sleep warning
+#define BATTERY_RECOVERY_THRESHOLD     3.5f   // V — return to IDLE from LOW_BATTERY
+#define BATTERY_CHECK_INTERVAL_MS      10000  // ms — check every 10 s in IDLE
+
 // Timing Constants
 #define WATCHDOG_TIMEOUT_MS 4000
 

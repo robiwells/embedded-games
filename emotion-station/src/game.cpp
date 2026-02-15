@@ -1,6 +1,7 @@
 #include "game.h"
 #include "led_controller.h"
 #include "config.h"
+#include "hardware.h"
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "platform_hal.h"
@@ -216,6 +217,17 @@ static void idle_enter() {
 }
 
 static void idle_update() {
+    // Periodic battery check
+    static uint32_t last_battery_check = 0;
+    if (HAL_millis() - last_battery_check >= BATTERY_CHECK_INTERVAL_MS) {
+        last_battery_check = HAL_millis();
+        if (battery_is_low()) {
+            HAL_log_println("[IDLE] Battery low, transitioning to LOW_BATTERY");
+            game_transition_to(STATE_LOW_BATTERY);
+            return;
+        }
+    }
+
     bool current_token_present = nfc_token_detected();
 
     // Detect falling edge: token was present, now removed
@@ -452,7 +464,18 @@ static void low_battery_enter() {
 }
 
 static void low_battery_update() {
-    // Stay in state (placeholder - battery recovery logic goes here)
+    static uint32_t last_check = 0;
+    if (HAL_millis() - last_check >= BATTERY_CHECK_INTERVAL_MS) {
+        last_check = HAL_millis();
+        float voltage = battery_get_voltage();
+        HAL_log_println("[LOW_BATTERY] Checking voltage");
+        if (battery_is_critical()) {
+            HAL_log_println("[LOW_BATTERY] CRITICAL - charge immediately");
+        } else if (voltage > BATTERY_RECOVERY_THRESHOLD) {
+            HAL_log_println("[LOW_BATTERY] Voltage recovered, returning to IDLE");
+            game_transition_to(STATE_IDLE);
+        }
+    }
 }
 
 static void low_battery_exit() {

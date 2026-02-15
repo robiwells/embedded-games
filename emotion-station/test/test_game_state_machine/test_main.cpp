@@ -17,6 +17,7 @@
 #include "../../test/mocks/activity_manager_mock.cpp"
 #include "../../test/mocks/audio_player_mock.cpp"
 #include "../../test/mocks/data_logger_mock.cpp"
+#include "../../test/mocks/hardware_mock.cpp"
 
 // Include production code directly (test-only pattern)
 #include "../../src/event_bus.cpp"
