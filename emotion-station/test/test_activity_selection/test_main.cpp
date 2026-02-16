@@ -27,7 +27,7 @@ static void randomSeed(unsigned long) {}
 
 // Include production code (UNIT_TEST is defined via build_flags, so
 // activity_manager_init() stub is used and SD card is never accessed)
-#include "../../src/activity_manager.cpp"
+#include "../../src/activity_manager/activity_manager.cpp"
 
 // ============================================================================
 // Test fixture helpers

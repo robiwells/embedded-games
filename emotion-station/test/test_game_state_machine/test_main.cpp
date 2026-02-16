@@ -22,9 +22,9 @@
 #include "../../test/mocks/session_manager_mock.cpp"
 
 // Include production code directly (test-only pattern)
-#include "../../src/event_bus.cpp"
-#include "../../src/game.cpp"
-#include "../../src/led_controller.cpp"
+#include "../../src/event_bus/event_bus.cpp"
+#include "../../src/game/game.cpp"
+#include "../../src/led_controller/led_controller.cpp"
 
 // Test utilities
 void setUp(void) {

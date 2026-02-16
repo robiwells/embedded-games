@@ -13,8 +13,8 @@
 #include "../../test/mocks/nfc_handler_mock.cpp"
 
 // Include headers for types
-#include "../../include/nfc_handler.h"
-#include "../../include/config.h"
+#include "nfc_handler.h"
+#include "config.h"
 
 // Test UIDs — copied from mapping table in nfc_handler_mock.cpp
 static const uint8_t uid_happy[]     = {0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6};

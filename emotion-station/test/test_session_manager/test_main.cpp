@@ -12,7 +12,7 @@
 #include "../../test/mocks/mood_registry_mock.cpp"
 
 // Include production code under test
-#include "../../src/session_manager.cpp"
+#include "../../src/session_manager/session_manager.cpp"
 
 // Declare mock helpers
 extern const SessionLog* mock_get_last_session();
