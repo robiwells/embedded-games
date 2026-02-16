@@ -30,6 +30,12 @@ extern void mock_nfc_set_token_present(bool present);
 extern void mock_nfc_set_read_success(bool success);
 extern void mock_nfc_set_uid(const uint8_t uid[7]);
 
+// Mirrors the hardware loop: update state, then dispatch any queued events
+static void game_step() {
+    game_update();
+    event_bus_process();
+}
+
 // Test utilities
 void setUp(void) {
     fake_reset();
@@ -104,7 +110,7 @@ void test_validating_transitions_immediately_on_valid_uid(void) {
     fake_set_millis(0);
     game_transition_to(STATE_VALIDATING);
 
-    game_update();
+    game_step();
     TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
 }
 
@@ -121,7 +127,7 @@ void test_playing_transitions_when_audio_complete(void) {
     fake_set_millis(0);
     game_transition_to(STATE_PLAYING_ACTIVITY);
 
-    game_update();
+    game_step();
     TEST_ASSERT_EQUAL(STATE_ACTIVITY_COMPLETE, game_get_current_state());
 }
 
@@ -135,7 +141,7 @@ void test_playing_stays_in_state_while_audio_running(void) {
 
     // Now audio ends
     fake_set_audio_running(false);
-    game_update();
+    game_step();
     TEST_ASSERT_EQUAL(STATE_ACTIVITY_COMPLETE, game_get_current_state());
 }
 
@@ -212,7 +218,7 @@ void test_rapid_transitions(void) {
     TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
 
     fake_advance_time(201);   // VALIDATING -> SELECTING
-    game_update();
+    game_step();
     TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
 
     game_update();   // SELECTING -> PLAYING (immediate)
@@ -287,7 +293,7 @@ void test_validating_with_each_valid_mood_transitions_to_selecting(void) {
         game_update();           // Reads UID → transitions to STATE_VALIDATING
         TEST_ASSERT_EQUAL(STATE_VALIDATING, game_get_current_state());
 
-        game_update();           // Validates UID → valid mood → STATE_SELECTING
+        game_step();             // Validates UID → valid mood → STATE_SELECTING
         TEST_ASSERT_EQUAL(STATE_SELECTING, game_get_current_state());
     }
 }

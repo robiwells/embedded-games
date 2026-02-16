@@ -238,53 +238,85 @@ static void activity_add_to_history(MoodCategory mood, uint8_t id) {
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline stage helpers (extracted for testability)
+// Pipeline stage helpers
 // ---------------------------------------------------------------------------
 
-static uint8_t stage_filter_by_mood(MoodCategory mood, uint8_t* out, uint8_t max) {
+// Context passed to every stage so each has access to mood and time-of-day
+typedef struct {
+    MoodCategory mood;
+    TimeOfDay    time;
+} SelectionContext;
+
+// Uniform stage signature: filter in[] → out[], return new count.
+// Returning 0 signals "no candidates" — the orchestrator falls back to in[].
+typedef uint8_t (*StageFn)(const uint8_t* in,  uint8_t in_count,
+                                  uint8_t* out, uint8_t out_max,
+                            const SelectionContext* ctx);
+
+static uint8_t stage_filter_by_mood(const uint8_t* in, uint8_t in_count,
+                                          uint8_t* out, uint8_t out_max,
+                                    const SelectionContext* ctx) {
     uint8_t count = 0;
-    for (uint8_t i = 0; i < activity_count && count < max; i++) {
-        if (activities[i].mood == mood) {
-            out[count++] = i;
+    for (uint8_t i = 0; i < in_count && count < out_max; i++) {
+        if (activities[in[i]].mood == ctx->mood) {
+            out[count++] = in[i];
         }
     }
     return count;
 }
 
-static uint8_t stage_filter_by_time(uint8_t* pool, uint8_t count, TimeOfDay time,
-                                     uint8_t* out, uint8_t max) {
-    uint8_t time_count = 0;
-    for (uint8_t i = 0; i < count && time_count < max; i++) {
-        if (activities[pool[i]].time_flags[time]) {
-            out[time_count++] = pool[i];
+static uint8_t stage_filter_by_time(const uint8_t* in, uint8_t in_count,
+                                           uint8_t* out, uint8_t out_max,
+                                     const SelectionContext* ctx) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < in_count && count < out_max; i++) {
+        if (activities[in[i]].time_flags[ctx->time]) {
+            out[count++] = in[i];
         }
     }
-    return time_count;
+    return count;
 }
 
-static uint8_t stage_exclude_recent(MoodCategory mood, uint8_t* pool, uint8_t count,
-                                     uint8_t* out, uint8_t max) {
-    uint8_t fresh_count = 0;
-    for (uint8_t i = 0; i < count && fresh_count < max; i++) {
-        if (!activity_is_recent(mood, activities[pool[i]].id)) {
-            out[fresh_count++] = pool[i];
+static uint8_t stage_exclude_recent(const uint8_t* in, uint8_t in_count,
+                                           uint8_t* out, uint8_t out_max,
+                                     const SelectionContext* ctx) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < in_count && count < out_max; i++) {
+        if (!activity_is_recent(ctx->mood, activities[in[i]].id)) {
+            out[count++] = in[i];
         }
     }
-    if (fresh_count == 0) {
+    if (count == 0) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 3: history cleared for mood %u (all %u recently played)", mood, count);
+        snprintf(buf, sizeof(buf),
+                 "[ACTIVITY] Stage 3: history cleared for mood %u (all %u recently played)",
+                 ctx->mood, in_count);
         HAL_log_println(buf);
         for (uint8_t i = 0; i < HISTORY_SIZE; i++) {
-            activity_history.recent_ids[mood][i] = 0;
+            activity_history.recent_ids[ctx->mood][i] = 0;
         }
-        activity_history.history_index[mood] = 0;
-        fresh_count = count < max ? count : max;
-        for (uint8_t i = 0; i < fresh_count; i++) {
-            out[i] = pool[i];
-        }
+        activity_history.history_index[ctx->mood] = 0;
+        // Return 0 — orchestrator will fall back to the previous pool
     }
-    return fresh_count;
+    return count;
 }
+
+// Pipeline stage descriptor — pairs a stage function with its failure mode:
+//   required = true  → empty result is a hard failure; return nullptr immediately
+//   required = false → empty result falls back to the previous pool (soft filter)
+typedef struct {
+    StageFn fn;
+    bool    required;
+} PipelineStage;
+
+// Ordered pipeline — add, remove or reorder stages here
+static const PipelineStage pipeline[] = {
+    { stage_filter_by_mood,    true  },   // hard: must match mood
+    { stage_filter_by_time,    false },   // soft: fall back to mood pool
+    { stage_exclude_recent,    false },   // soft: fall back to time/mood pool
+};
+static const uint8_t NUM_PIPELINE_STAGES =
+    (uint8_t)(sizeof(pipeline) / sizeof(pipeline[0]));
 
 static Activity* stage_random_pick(uint8_t* pool, uint8_t count) {
     if (count == 0) return nullptr;
@@ -293,57 +325,58 @@ static Activity* stage_random_pick(uint8_t* pool, uint8_t count) {
 }
 
 Activity* activity_select(MoodCategory mood, TimeOfDay time) {
-    char buf[64];
+    char buf[80];
+    SelectionContext ctx = { mood, time };
 
-    // Stage 1: filter by mood
-    uint8_t mood_candidates[MAX_ACTIVITIES];
-    uint8_t mood_count = stage_filter_by_mood(mood, mood_candidates, MAX_ACTIVITIES);
-    if (mood_count == 0) {
-        HAL_log_println("[ACTIVITY] Stage 1 FAIL: no activities for mood");
-        return nullptr;
+    // Seed the pool with every activity index
+    uint8_t buf_a[MAX_ACTIVITIES];
+    uint8_t buf_b[MAX_ACTIVITIES];
+    for (uint8_t i = 0; i < activity_count; i++) buf_a[i] = i;
+    uint8_t* current    = buf_a;
+    uint8_t* scratch    = buf_b;
+    uint8_t  pool_size  = activity_count;
+
+    // Run each stage
+    for (uint8_t s = 0; s < NUM_PIPELINE_STAGES; s++) {
+        uint8_t out_count = pipeline[s].fn(current, pool_size, scratch, MAX_ACTIVITIES, &ctx);
+        snprintf(buf, sizeof(buf), "[ACTIVITY] Stage %u: %u candidates", s + 1, out_count);
+        HAL_log_println(buf);
+
+        if (out_count == 0) {
+            if (pipeline[s].required) {
+                HAL_log_println("[ACTIVITY] Pipeline FAIL: required stage found no candidates");
+                return nullptr;
+            }
+            HAL_log_println("[ACTIVITY] Stage fallback: keeping previous pool");
+            // current and pool_size remain unchanged
+        } else {
+            // Swap buffers — scratch becomes current for the next stage
+            uint8_t* tmp = current; current = scratch; scratch = tmp;
+            pool_size = out_count;
+        }
     }
-    snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 1: %u mood candidates", mood_count);
-    HAL_log_println(buf);
 
-    // Stage 2: filter by time — fall back to mood candidates if none match
-    uint8_t time_candidates[MAX_ACTIVITIES];
-    uint8_t time_count = stage_filter_by_time(mood_candidates, mood_count, time,
-                                               time_candidates, MAX_ACTIVITIES);
-    uint8_t* pool      = time_count > 0 ? time_candidates : mood_candidates;
-    uint8_t  pool_size = time_count > 0 ? time_count      : mood_count;
-    snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 2: %u time candidates (time=%s)",
-             time_count, activity_get_time_name(time));
-    HAL_log_println(buf);
-    if (time_count == 0) {
-        HAL_log_println("[ACTIVITY] Stage 2: no time match, using mood pool");
-    }
-
-    // Early return when only 1 candidate — history would fill and clear every play
-    if (pool_size <= 1) {
-        Activity* selected = &activities[pool[0]];
-        snprintf(buf, sizeof(buf), "[ACTIVITY] WARNING: Only 1 activity for mood/time — no variety possible: '%s'", selected->name);
+    // Single candidate — skip history to avoid thrashing
+    if (pool_size == 1) {
+        Activity* selected = &activities[current[0]];
+        snprintf(buf, sizeof(buf),
+                 "[ACTIVITY] WARNING: only 1 activity — no variety possible: '%s'",
+                 selected->name);
         HAL_log_println(buf);
         return selected;
     }
 
-    // Stage 3: remove recently played
-    uint8_t fresh_candidates[MAX_ACTIVITIES];
-    uint8_t fresh_count = stage_exclude_recent(mood, pool, pool_size,
-                                               fresh_candidates, MAX_ACTIVITIES);
-    snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 3: %u fresh candidates", fresh_count);
-    HAL_log_println(buf);
-
-    // Stage 4: random pick — reseed every 10 selections for better entropy
+    // Terminal stage: random pick — reseed every 10 selections for better entropy
     static uint16_t selection_count = 0;
     if (++selection_count % 10 == 0) {
 #if !defined(UNIT_TEST)
         randomSeed((uint32_t)(analogRead(BATTERY_ADC_PIN)) ^ HAL_millis());
 #endif
     }
-    Activity* selected = stage_random_pick(fresh_candidates, fresh_count);
+    Activity* selected = stage_random_pick(current, pool_size);
     if (selected) {
         activity_add_to_history(mood, selected->id);
-        snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 4: selected '%s' (id=%u)",
+        snprintf(buf, sizeof(buf), "[ACTIVITY] Selected '%s' (id=%u)",
                  selected->name, selected->id);
         HAL_log_println(buf);
     }

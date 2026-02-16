@@ -49,6 +49,27 @@ static TestState test_state = TEST_IDLE;
 static unsigned long test_step_start_time = 0;
 static bool test_active = false;
 
+// =============================================================================
+// DATA-DRIVEN TRANSITION TABLE
+// =============================================================================
+
+typedef struct {
+    GameState from;     // Source state; NUM_STATES = wildcard (any state)
+    EventType trigger;  // Event type that fires this transition
+    GameState to;       // Target state
+} Transition;
+
+// Table is evaluated top-to-bottom; first match wins.
+// Guards (e.g. don't override ERROR) are applied inside game_process_event().
+static const Transition transition_table[] = {
+    // Battery critical can interrupt from any state except ERROR / LOW_BATTERY (guarded below)
+    { NUM_STATES,             BATTERY_LOW,    STATE_LOW_BATTERY       },
+    // NFC validated — move from VALIDATING to SELECTING
+    { STATE_VALIDATING,       NFC_DETECTED,   STATE_SELECTING         },
+    // Audio finished naturally — move to ACTIVITY_COMPLETE
+    { STATE_PLAYING_ACTIVITY, AUDIO_COMPLETE, STATE_ACTIVITY_COMPLETE },
+};
+
 // State names for debug logging
 static const char* state_names[] = {
     "IDLE",
@@ -193,11 +214,22 @@ void handle_error(ErrorCode error) {
     game_transition_to(STATE_ERROR);
 }
 
-static void on_battery_low_event(const Event* event) {
-    (void)event;
-    if (current_state != STATE_LOW_BATTERY && current_state != STATE_ERROR) {
-        HAL_log_println("[BATTERY] BATTERY_LOW event — transitioning to LOW_BATTERY");
-        game_transition_to(STATE_LOW_BATTERY);
+// Walk the transition table for any inbound event.
+static void game_process_event(const Event* event) {
+    uint8_t n = sizeof(transition_table) / sizeof(transition_table[0]);
+    for (uint8_t i = 0; i < n; i++) {
+        const Transition* t = &transition_table[i];
+        bool from_matches = (t->from == NUM_STATES) || (t->from == current_state);
+        if (event->type != t->trigger || !from_matches) {
+            continue;
+        }
+        // Guard: never override ERROR or LOW_BATTERY with another LOW_BATTERY transition
+        if (t->to == STATE_LOW_BATTERY &&
+            (current_state == STATE_LOW_BATTERY || current_state == STATE_ERROR)) {
+            return;
+        }
+        game_transition_to(t->to);
+        return;
     }
 }
 
@@ -213,8 +245,10 @@ void game_init() {
     previous_token_present = false;
     token_processed = false;
 
-    // Subscribe to battery events
-    event_bus_subscribe(BATTERY_LOW, on_battery_low_event);
+    // Subscribe to events that drive state transitions via the transition table
+    event_bus_subscribe(BATTERY_LOW,    game_process_event);
+    event_bus_subscribe(NFC_DETECTED,   game_process_event);
+    event_bus_subscribe(AUDIO_COMPLETE, game_process_event);
 
     // Call initial state's enter function
     if (state_handlers[current_state].enter != nullptr) {
@@ -363,9 +397,8 @@ static void validating_update() {
             nfc_data.uid[i] = nfc_uid[i];
         }
         nfc_data.mood = current_mood;
+        // Publish NFC_DETECTED — transition table drives STATE_VALIDATING → STATE_SELECTING
         event_bus_publish(NFC_DETECTED, PRIORITY_HIGH, &nfc_data, sizeof(nfc_data));
-
-        game_transition_to(STATE_SELECTING);
     }
 }
 
@@ -423,7 +456,8 @@ static void playing_update() {
     if (!HAL_audio_is_running()) {
         HAL_log_println("[PLAYING] Audio complete");
         s_audio_completed = true;
-        game_transition_to(STATE_ACTIVITY_COMPLETE);
+        // Publish AUDIO_COMPLETE — transition table drives STATE_PLAYING_ACTIVITY → STATE_ACTIVITY_COMPLETE
+        event_bus_publish(AUDIO_COMPLETE, PRIORITY_NORMAL, nullptr, 0);
     }
 }
 

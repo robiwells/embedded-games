@@ -72,15 +72,13 @@ void loop() {
 
     HAL_watchdog_reset();
 
-    // Process events FIRST (before state machine update) - Phase 2.5
-    event_bus_process();
-
     hardware_heartbeat();
     battery_manager_update();
     led_update();
     audio_loop();
     nfc_test_update();
     game_update();
+    event_bus_process(); // dispatch events published during this iteration
 
     // Test triggers from serial input
     if (Serial.available()) {
