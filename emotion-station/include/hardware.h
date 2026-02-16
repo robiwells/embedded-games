@@ -3,7 +3,13 @@
 
 // Hardware Abstraction Layer Interface
 
-void hardware_init();
+typedef struct {
+    bool nfc_ok;
+    bool sd_ok;
+    bool audio_ok;
+} HardwareInitResult;
+
+HardwareInitResult hardware_init();
 void hardware_heartbeat();
 void hardware_enter_deep_sleep();
 

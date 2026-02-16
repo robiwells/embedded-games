@@ -5,6 +5,25 @@
 #include <Arduino.h>
 #endif
 
+// =============================================================================
+// GPIO Pin Assignment Table
+// =============================================================================
+// Pin  | Function             | Notes
+// -----+----------------------+------------------------------------------
+//   2  | STATUS_LED_PIN       | Boot-strapping pin — must be H/float at boot
+//   4  | SD_CS_PIN            | SPI chip-select for SD card
+//   5  | LED_DATA_PIN         | NeoPixel data (WS2812B)
+//  18  | SD_SCK_PIN           | SPI clock for SD card
+//  19  | SD_MISO_PIN          | SPI MISO for SD card
+//  21  | I2C_SDA_PIN          | I2C data (NFC PN532)
+//  22  | I2C_SCL_PIN          | I2C clock (NFC PN532)
+//  23  | SD_MOSI_PIN          | SPI MOSI for SD card
+//  25  | I2S_BCLK_PIN         | I2S bit clock (audio DAC)
+//  26  | I2S_LRC_PIN          | I2S left/right clock (audio DAC)
+//  27  | I2S_DOUT_PIN         | I2S data out (audio DAC)
+//  34  | BATTERY_ADC_PIN      | ADC input (input-only pin — no pull-up)
+// =============================================================================
+
 // GPIO Pin Assignments
 #define LED_DATA_PIN 5
 #define STATUS_LED_PIN 2  // Boot strapping pin - must be high/floating during boot
@@ -25,6 +44,11 @@
 
 // Timing Constants
 #define WATCHDOG_TIMEOUT_MS 4000
+
+// State Machine Timeouts
+#define STATE_NFC_DETECTED_TIMEOUT_MS 1000
+#define STATE_COMPLETE_TIMEOUT_MS     2000
+#define STATE_ERROR_TIMEOUT_MS        5000
 
 // SPI Pin Assignments (SD Card)
 #define SD_SCK_PIN   18

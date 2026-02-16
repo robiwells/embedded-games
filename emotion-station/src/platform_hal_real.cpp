@@ -11,6 +11,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <esp_task_wdt.h>
 #include "config.h"
+#include "audio_player.h"
 
 // Global NeoPixel instance (managed by LED controller)
 static Adafruit_NeoPixel* g_pixels = nullptr;
@@ -44,6 +45,10 @@ static void real_log_println(const char* msg) {
 static void real_led_begin(void) {
     if (g_pixels == nullptr) {
         g_pixels = new Adafruit_NeoPixel(NUM_LEDS, LED_DATA_PIN, NEO_GRB + NEO_KHZ800);
+        if (!g_pixels) {
+            Serial.println("[HAL] FATAL: NeoPixel alloc failed");
+            return;
+        }
     }
     g_pixels->begin();
 }
@@ -99,26 +104,22 @@ static void real_watchdog_reset(void) {
     esp_task_wdt_reset();
 }
 
-// ========= Audio Functions (Phase 4) =========
-// Stub implementations — will call ESP32-audioI2S Audio object when Phase 4 connects
+// ========= Audio Functions =========
 
 static void real_audio_play(const char* path) {
-    // Phase 4: audio.connecttoFS(SD, path);
-    Serial.print("[AUDIO] play: ");
-    Serial.println(path);
+    audio_play(path);
 }
 
 static void real_audio_stop(void) {
-    // Phase 4: audio.stopSong();
+    audio_stop();
 }
 
 static bool real_audio_is_running(void) {
-    // Phase 4: return audio.isRunning();
-    return false;
+    return audio_is_running();
 }
 
 static void real_audio_loop(void) {
-    // Phase 4: audio.loop();
+    audio_loop();
 }
 
 // ========= Platform HAL Instance =========

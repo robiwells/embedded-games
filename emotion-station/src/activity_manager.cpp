@@ -1,23 +1,20 @@
 #include "activity_manager.h"
+#include "time_service.h"
 #include "platform_hal.h"
 #include <string.h>
+#include <stdio.h>
 
-#ifndef WOKWI_SIMULATION
+#if !defined(WOKWI_SIMULATION) && !defined(UNIT_TEST)
 #include <SD.h>
 #include <ArduinoJson.h>
-#include <time.h>
 #endif
 
 static Activity activities[MAX_ACTIVITIES];
 static uint8_t activity_count = 0;
 
 #ifdef WOKWI_SIMULATION
-static uint8_t s_sim_time_offset_hours = 12;
-
 void activity_set_sim_time(uint8_t hour) {
-    // Adjust offset so that (millis/60000 + offset) % 24 == hour
-    uint32_t elapsed_hours = (HAL_millis() / 60000UL) % 24;
-    s_sim_time_offset_hours = (uint8_t)((hour + 24 - elapsed_hours) % 24);
+    time_service_set_mock_hour(hour);
 }
 #endif
 
@@ -38,6 +35,11 @@ static ActivityHistory activity_history = {{{0}}, {0}};
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+static void csv_sanitise(char* field) {
+    if (field[0] == '=' || field[0] == '+' || field[0] == '-' || field[0] == '@')
+        field[0] = '_';
+}
+
 static MoodCategory mood_from_string(const char* s) {
     if (strcmp(s, "happy")     == 0) return MOOD_HAPPY;
     if (strcmp(s, "sad")       == 0) return MOOD_SAD;
@@ -52,7 +54,14 @@ static MoodCategory mood_from_string(const char* s) {
 // Wokwi simulation — hardcoded activities (SD not supported in Wokwi)
 // ---------------------------------------------------------------------------
 
-#ifdef WOKWI_SIMULATION
+#ifdef UNIT_TEST
+
+bool activity_manager_init() {
+    // Stub for unit tests — use activity_test_inject() to load activities
+    return true;
+}
+
+#elif defined(WOKWI_SIMULATION)
 
 bool activity_manager_init() {
     HAL_log_println("[ACTIVITY] Wokwi simulation: loading mock activities");
@@ -99,6 +108,7 @@ bool activity_manager_init() {
         a->name[ACTIVITY_NAME_LENGTH - 1]      = '\0';
         a->file_path[ACTIVITY_PATH_LENGTH - 1] = '\0';
         a->type[ACTIVITY_TYPE_LENGTH - 1]      = '\0';
+        csv_sanitise(a->name);
         for (int t = 0; t < 4; t++) a->time_flags[t] = mock[i].time_flags[t];
     }
 
@@ -112,7 +122,10 @@ bool activity_manager_init() {
 // Real hardware — parse activities.json from SD card
 // ---------------------------------------------------------------------------
 
+static StaticJsonDocument<8192> s_json_doc;
+
 bool activity_manager_init() {
+    s_json_doc.clear();
     HAL_log_println("[ACTIVITY] Initialising SD card");
 
     if (!SD.begin(SD_CS_PIN)) {
@@ -127,8 +140,7 @@ bool activity_manager_init() {
         return false;
     }
 
-    StaticJsonDocument<8192> doc;
-    DeserializationError err = deserializeJson(doc, f);
+    DeserializationError err = deserializeJson(s_json_doc, f);
     f.close();
 
     if (err) {
@@ -136,7 +148,7 @@ bool activity_manager_init() {
         return false;
     }
 
-    JsonArray arr = doc["activities"].as<JsonArray>();
+    JsonArray arr = s_json_doc["activities"].as<JsonArray>();
     if (arr.isNull()) {
         HAL_log_println("[ACTIVITY] ERROR: no 'activities' array in JSON");
         return false;
@@ -162,6 +174,7 @@ bool activity_manager_init() {
         a->name[ACTIVITY_NAME_LENGTH - 1]      = '\0';
         a->file_path[ACTIVITY_PATH_LENGTH - 1] = '\0';
         a->type[ACTIVITY_TYPE_LENGTH - 1]      = '\0';
+        csv_sanitise(a->name);
 
         JsonArray times = obj["time_of_day"].as<JsonArray>();
         for (int t = 0; t < 4; t++) a->time_flags[t] = false;
@@ -186,34 +199,7 @@ bool activity_manager_init() {
 // ---------------------------------------------------------------------------
 
 TimeOfDay activity_get_time_of_day() {
-    uint8_t hour;
-
-#ifdef WOKWI_SIMULATION
-    // 1 real minute = 1 simulated hour, wraps at 24
-    hour = (uint8_t)(((HAL_millis() / 60000UL) + s_sim_time_offset_hours) % 24);
-    HAL_log_print("ActivityMgr: Simulated hour: ");
-    HAL_log_println(String(hour).c_str());
-#else
-    time_t now;
-    struct tm timeinfo;
-    time(&now);
-    localtime_r(&now, &timeinfo);
-    hour = (uint8_t)timeinfo.tm_hour;
-    Serial.print("ActivityMgr: RTC hour: ");
-    Serial.print(hour);
-    Serial.print(" (");
-    Serial.print(timeinfo.tm_year + 1900);
-    Serial.print("-");
-    Serial.print(timeinfo.tm_mon + 1);
-    Serial.print("-");
-    Serial.print(timeinfo.tm_mday);
-    Serial.println(")");
-#endif
-
-    if (hour >= 6  && hour < 12) return TIME_MORNING;
-    if (hour >= 12 && hour < 17) return TIME_AFTERNOON;
-    if (hour >= 17 && hour < 21) return TIME_EVENING;
-    return TIME_BEDTIME;
+    return time_service_get_time_of_day();
 }
 
 const char* activity_get_time_name(TimeOfDay time) {
@@ -241,31 +227,78 @@ static void activity_add_to_history(MoodCategory mood, uint8_t id) {
     activity_history.history_index[mood] = (idx + 1) % HISTORY_SIZE;
 }
 
-Activity* activity_select(MoodCategory mood, TimeOfDay time) {
-    // Stage 1: filter by mood
-    uint8_t mood_candidates[MAX_ACTIVITIES];
-    uint8_t mood_count = 0;
-    for (uint8_t i = 0; i < activity_count; i++) {
+// ---------------------------------------------------------------------------
+// Pipeline stage helpers (extracted for testability)
+// ---------------------------------------------------------------------------
+
+static uint8_t stage_filter_by_mood(MoodCategory mood, uint8_t* out, uint8_t max) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < activity_count && count < max; i++) {
         if (activities[i].mood == mood) {
-            mood_candidates[mood_count++] = i;
+            out[count++] = i;
         }
     }
+    return count;
+}
+
+static uint8_t stage_filter_by_time(uint8_t* pool, uint8_t count, TimeOfDay time,
+                                     uint8_t* out, uint8_t max) {
+    uint8_t time_count = 0;
+    for (uint8_t i = 0; i < count && time_count < max; i++) {
+        if (activities[pool[i]].time_flags[time]) {
+            out[time_count++] = pool[i];
+        }
+    }
+    return time_count;
+}
+
+static uint8_t stage_exclude_recent(MoodCategory mood, uint8_t* pool, uint8_t count,
+                                     uint8_t* out, uint8_t max) {
+    uint8_t fresh_count = 0;
+    for (uint8_t i = 0; i < count && fresh_count < max; i++) {
+        if (!activity_is_recent(mood, activities[pool[i]].id)) {
+            out[fresh_count++] = pool[i];
+        }
+    }
+    if (fresh_count == 0) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 3: history cleared for mood %u (all %u recently played)", mood, count);
+        HAL_log_println(buf);
+        for (uint8_t i = 0; i < HISTORY_SIZE; i++) {
+            activity_history.recent_ids[mood][i] = 0;
+        }
+        activity_history.history_index[mood] = 0;
+        fresh_count = count < max ? count : max;
+        for (uint8_t i = 0; i < fresh_count; i++) {
+            out[i] = pool[i];
+        }
+    }
+    return fresh_count;
+}
+
+static Activity* stage_random_pick(uint8_t* pool, uint8_t count) {
+    if (count == 0) return nullptr;
+    uint8_t pick = (uint8_t)(random(count));
+    return &activities[pool[pick]];
+}
+
+Activity* activity_select(MoodCategory mood, TimeOfDay time) {
+    char buf[64];
+
+    // Stage 1: filter by mood
+    uint8_t mood_candidates[MAX_ACTIVITIES];
+    uint8_t mood_count = stage_filter_by_mood(mood, mood_candidates, MAX_ACTIVITIES);
     if (mood_count == 0) {
         HAL_log_println("[ACTIVITY] Stage 1 FAIL: no activities for mood");
         return nullptr;
     }
-    char buf[64];
     snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 1: %u mood candidates", mood_count);
     HAL_log_println(buf);
 
     // Stage 2: filter by time — fall back to mood candidates if none match
     uint8_t time_candidates[MAX_ACTIVITIES];
-    uint8_t time_count = 0;
-    for (uint8_t i = 0; i < mood_count; i++) {
-        if (activities[mood_candidates[i]].time_flags[time]) {
-            time_candidates[time_count++] = mood_candidates[i];
-        }
-    }
+    uint8_t time_count = stage_filter_by_time(mood_candidates, mood_count, time,
+                                               time_candidates, MAX_ACTIVITIES);
     uint8_t* pool      = time_count > 0 ? time_candidates : mood_candidates;
     uint8_t  pool_size = time_count > 0 ? time_count      : mood_count;
     snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 2: %u time candidates (time=%s)",
@@ -285,40 +318,49 @@ Activity* activity_select(MoodCategory mood, TimeOfDay time) {
 
     // Stage 3: remove recently played
     uint8_t fresh_candidates[MAX_ACTIVITIES];
-    uint8_t fresh_count = 0;
-    for (uint8_t i = 0; i < pool_size; i++) {
-        if (!activity_is_recent(mood, activities[pool[i]].id)) {
-            fresh_candidates[fresh_count++] = pool[i];
-        }
-    }
-    if (fresh_count == 0) {
-        // All candidates played recently — clear history and retry
-        HAL_log_println("[ACTIVITY] Stage 3: history full, clearing for this mood");
-        for (uint8_t i = 0; i < HISTORY_SIZE; i++) {
-            activity_history.recent_ids[mood][i] = 0;
-        }
-        activity_history.history_index[mood] = 0;
-        fresh_count = pool_size;
-        for (uint8_t i = 0; i < pool_size; i++) {
-            fresh_candidates[i] = pool[i];
-        }
-    }
+    uint8_t fresh_count = stage_exclude_recent(mood, pool, pool_size,
+                                               fresh_candidates, MAX_ACTIVITIES);
     snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 3: %u fresh candidates", fresh_count);
     HAL_log_println(buf);
 
-    // Stage 4: random pick
-    uint8_t pick = (uint8_t)(random(fresh_count));
-    Activity* selected = &activities[fresh_candidates[pick]];
-    activity_add_to_history(mood, selected->id);
-    snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 4: selected '%s' (id=%u)",
-             selected->name, selected->id);
-    HAL_log_println(buf);
+    // Stage 4: random pick — reseed every 10 selections for better entropy
+    static uint16_t selection_count = 0;
+    if (++selection_count % 10 == 0) {
+#if !defined(UNIT_TEST)
+        randomSeed((uint32_t)(analogRead(BATTERY_ADC_PIN)) ^ HAL_millis());
+#endif
+    }
+    Activity* selected = stage_random_pick(fresh_candidates, fresh_count);
+    if (selected) {
+        activity_add_to_history(mood, selected->id);
+        snprintf(buf, sizeof(buf), "[ACTIVITY] Stage 4: selected '%s' (id=%u)",
+                 selected->name, selected->id);
+        HAL_log_println(buf);
+    }
     return selected;
 }
 
 uint8_t activity_get_count() {
     return activity_count;
 }
+
+#ifdef UNIT_TEST
+void activity_test_inject(const Activity* arr, uint8_t count) {
+    activity_count = count < MAX_ACTIVITIES ? count : MAX_ACTIVITIES;
+    for (uint8_t i = 0; i < activity_count; i++) {
+        activities[i] = arr[i];
+    }
+}
+
+void activity_history_clear() {
+    for (uint8_t m = 0; m < NUM_MOODS; m++) {
+        for (uint8_t i = 0; i < HISTORY_SIZE; i++) {
+            activity_history.recent_ids[m][i] = 0;
+        }
+        activity_history.history_index[m] = 0;
+    }
+}
+#endif
 
 void activity_test_load() {
     HAL_log_println("[ACTIVITY] Test load:");

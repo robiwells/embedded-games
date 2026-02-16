@@ -8,64 +8,35 @@
 #include "nfc_handler.h"
 #include "activity_manager.h"
 #include "audio_player.h"
+#include "time_service.h"
 #include <esp_task_wdt.h>
 #include <esp_system.h>
-#ifndef WOKWI_SIMULATION
-#include <time.h>
-#endif
-
-#ifndef WOKWI_SIMULATION
-static void rtc_init() {
-    // Seed ESP32 RTC with compile-time timestamp so time-of-day filtering works
-    // without network or an external RTC module. Time resets on each power cycle.
-    struct tm timeinfo = {};
-    // __DATE__ is "Mmm DD YYYY", __TIME__ is "HH:MM:SS"
-    // Use strptime-style manual parse via sscanf for portability
-    int year, month, day, hour, min, sec;
-    const char* months = "JanFebMarAprMayJunJulAugSepOctNovDec";
-    char mon_str[4] = {};
-    sscanf(__DATE__, "%3s %d %d", mon_str, &day, &year);
-    month = ((strstr(months, mon_str) - months) / 3) + 1;
-    sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
-
-    timeinfo.tm_year = year - 1900;
-    timeinfo.tm_mon  = month - 1;
-    timeinfo.tm_mday = day;
-    timeinfo.tm_hour = hour;
-    timeinfo.tm_min  = min;
-    timeinfo.tm_sec  = sec;
-
-    time_t t = mktime(&timeinfo);
-    struct timeval now_tv = { .tv_sec = t };
-    settimeofday(&now_tv, NULL);
-
-    Serial.print("RTC: Set to ");
-    Serial.print(asctime(&timeinfo));
-}
-#endif
 
 void setup() {
     // Initialise HAL first (must be done before any other modules)
     platform_hal = &platform_real;
 
+    // LED and game must be ready before hardware_init() may call handle_error()
+    led_init();
+    game_init();
+
 #ifndef WOKWI_SIMULATION
     esp_reset_reason_t reset_reason = esp_reset_reason();
 #endif
 
-    hardware_init();
-#ifndef WOKWI_SIMULATION
-    rtc_init();
-#endif
-    led_init();
+    HardwareInitResult hw = hardware_init();
+    if (!hw.nfc_ok)   handle_error(ERROR_NFC_INIT_FAILED);
+    if (!hw.sd_ok)    handle_error(ERROR_SD_INIT_FAILED);
+    if (!hw.audio_ok) handle_error(ERROR_AUDIO_INIT_FAILED);
+
+    time_service_init();
 
     // Initialise event bus (Phase 2.5)
     event_bus_init();
 
-    game_init();
-
 #ifndef WOKWI_SIMULATION
     if (reset_reason == ESP_RST_WDT || reset_reason == ESP_RST_TASK_WDT) {
-        Serial.println("WARNING: Watchdog reset detected!");
+        HAL_log_println("WARNING: Watchdog reset detected!");
         handle_error(ERROR_WATCHDOG_RESET);
     }
 #endif
@@ -73,26 +44,26 @@ void setup() {
     // Publish boot complete event
     event_bus_publish(BOOT_COMPLETE, PRIORITY_LOW, NULL, 0);
 
-    Serial.println("\nCommands:");
-    Serial.println("  t - Test state machine");
-    Serial.println("  n - Test NFC reader");
+    HAL_log_println("\nCommands:");
+    HAL_log_println("  t - Test state machine");
+    HAL_log_println("  n - Test NFC reader");
 #ifndef WOKWI_SIMULATION
-    Serial.println("  SETTIME YYYY-MM-DD HH:MM:SS - Set RTC time");
+    HAL_log_println("  SETTIME YYYY-MM-DD HH:MM:SS - Set RTC time");
 #endif
 #ifdef WOKWI_SIMULATION
-    Serial.println("  p - Present mock NFC token");
-    Serial.println("  r - Remove mock NFC token");
-    Serial.println("  0 - Set token mood: Happy");
-    Serial.println("  1 - Set token mood: Sad");
-    Serial.println("  2 - Set token mood: Calm");
-    Serial.println("  3 - Set token mood: Energetic");
-    Serial.println("  4 - Set token mood: Anxious");
-    Serial.println("  5 - Set token mood: Angry");
-    Serial.println("  M - Jump to Morning (06:00)");
-    Serial.println("  A - Jump to Afternoon (12:00)");
-    Serial.println("  E - Jump to Evening (17:00)");
-    Serial.println("  B - Jump to Bedtime (21:00)");
-    Serial.println("  b - Cycle battery voltage (4.2 → 3.5 → 3.4 → 3.3 → ...)");
+    HAL_log_println("  p - Present mock NFC token");
+    HAL_log_println("  r - Remove mock NFC token");
+    HAL_log_println("  0 - Set token mood: Happy");
+    HAL_log_println("  1 - Set token mood: Sad");
+    HAL_log_println("  2 - Set token mood: Calm");
+    HAL_log_println("  3 - Set token mood: Energetic");
+    HAL_log_println("  4 - Set token mood: Anxious");
+    HAL_log_println("  5 - Set token mood: Angry");
+    HAL_log_println("  M - Jump to Morning (06:00)");
+    HAL_log_println("  A - Jump to Afternoon (12:00)");
+    HAL_log_println("  E - Jump to Evening (17:00)");
+    HAL_log_println("  B - Jump to Bedtime (21:00)");
+    HAL_log_println("  b - Cycle battery voltage (4.2 -> 3.5 -> 3.4 -> 3.3 -> ...)");
 #endif
 }
 
@@ -128,30 +99,19 @@ void loop() {
             int year, month, day, hour, min, sec;
             if (sscanf(full.c_str(), "SETTIME %d-%d-%d %d:%d:%d",
                        &year, &month, &day, &hour, &min, &sec) == 6) {
-                struct tm timeinfo = {};
-                timeinfo.tm_year = year - 1900;
-                timeinfo.tm_mon  = month - 1;
-                timeinfo.tm_mday = day;
-                timeinfo.tm_hour = hour;
-                timeinfo.tm_min  = min;
-                timeinfo.tm_sec  = sec;
-                time_t t = mktime(&timeinfo);
-                struct timeval now_tv = { .tv_sec = t };
-                settimeofday(&now_tv, NULL);
-                Serial.print("RTC: Time set to ");
-                Serial.print(asctime(&timeinfo));
+                time_service_set(year, month, day, hour, min, sec);
             } else {
-                Serial.println("ERROR: Format is SETTIME YYYY-MM-DD HH:MM:SS");
+                HAL_log_println("ERROR: Format is SETTIME YYYY-MM-DD HH:MM:SS");
             }
         }
 #endif
 #ifdef WOKWI_SIMULATION
         else if (cmd == 'p' || cmd == 'r' || (cmd >= '0' && cmd <= '5')) {
             nfc_handle_mock_command(cmd);
-        } else if (cmd == 'M') { activity_set_sim_time(6);  Serial.println("Time: Morning");   }
-        else if (cmd == 'A') { activity_set_sim_time(12); Serial.println("Time: Afternoon"); }
-        else if (cmd == 'E') { activity_set_sim_time(17); Serial.println("Time: Evening");   }
-        else if (cmd == 'B') { activity_set_sim_time(21); Serial.println("Time: Bedtime");   }
+        } else if (cmd == 'M') { activity_set_sim_time(6);  HAL_log_println("Time: Morning");   }
+        else if (cmd == 'A') { activity_set_sim_time(12); HAL_log_println("Time: Afternoon"); }
+        else if (cmd == 'E') { activity_set_sim_time(17); HAL_log_println("Time: Evening");   }
+        else if (cmd == 'B') { activity_set_sim_time(21); HAL_log_println("Time: Bedtime");   }
         else if (cmd == 'b') {
             static uint8_t b_step = 0;
             float voltages[] = {4.2f, 3.5f, 3.4f, 3.3f};
@@ -170,17 +130,22 @@ void loop() {
     total_time += loop_duration;
     if (loop_duration > max_loop_time) {
         max_loop_time = loop_duration;
-        Serial.print("[TIMING] New max loop time: ");
-        Serial.print(max_loop_time);
-        Serial.println(" us");
+        char buf[48];
+        snprintf(buf, sizeof(buf), "[TIMING] New max loop time: %lu us", (unsigned long)max_loop_time);
+        HAL_log_println(buf);
     }
     static uint32_t last_timing_report = 0;
-    if (millis() - last_timing_report >= 10000) {
-        last_timing_report = millis();
-        Serial.println("\n=== LOOP TIMING ===");
-        Serial.print("Avg: "); Serial.print((uint32_t)(total_time / total_loops)); Serial.println(" us");
-        Serial.print("Max: "); Serial.print(max_loop_time); Serial.println(" us");
-        Serial.print("WDT margin: "); Serial.print(4000.0f - (max_loop_time / 1000.0f)); Serial.println(" ms");
-        Serial.println("===================\n");
+    if (HAL_millis() - last_timing_report >= 10000) {
+        last_timing_report = HAL_millis();
+        char buf[96];
+        HAL_log_println("\n=== LOOP TIMING ===");
+        snprintf(buf, sizeof(buf), "Avg: %lu us", (unsigned long)(total_time / total_loops));
+        HAL_log_println(buf);
+        snprintf(buf, sizeof(buf), "Max: %lu us", (unsigned long)max_loop_time);
+        HAL_log_println(buf);
+        int32_t margin_ms = (int32_t)(4000L - (long)(max_loop_time / 1000UL));
+        snprintf(buf, sizeof(buf), "WDT margin: %ld ms", (long)margin_ms);
+        HAL_log_println(buf);
+        HAL_log_println("===================\n");
     }
 }

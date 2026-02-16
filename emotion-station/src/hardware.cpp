@@ -10,40 +10,37 @@
 #include <esp_system.h>
 #include <Arduino.h>
 
-static float last_battery_voltage = 4.2f;
+// ============================================================================
+// BATTERY MONITORING (real hardware ADC)
+// ============================================================================
 
-#ifdef WOKWI_SIMULATION
-
-float battery_get_voltage() { return last_battery_voltage; }
-bool  battery_is_low()      { return last_battery_voltage < BATTERY_LOW_THRESHOLD; }
-bool  battery_is_critical() { return last_battery_voltage < BATTERY_CRITICAL_THRESHOLD; }
-
-void battery_set_mock_voltage(float voltage) {
-    last_battery_voltage = voltage;
-    HAL_log_print("[BATTERY] MOCK voltage set to ");
-    Serial.print(voltage);
-    Serial.println("V");
-}
-
-#else // Real hardware
+static float last_battery_voltage = -1.0f;
 
 float battery_get_voltage() {
     int adc_value = analogRead(BATTERY_ADC_PIN);
     float voltage = (adc_value / 4095.0f) * 3.3f * BATTERY_VOLTAGE_DIVIDER_RATIO;
-    last_battery_voltage = (last_battery_voltage * 0.9f) + (voltage * 0.1f);
+    if (last_battery_voltage < 0.0f) {
+        last_battery_voltage = voltage;  // First reading — no smoothing
+    } else {
+        last_battery_voltage = (last_battery_voltage * 0.9f) + (voltage * 0.1f);
+    }
     return last_battery_voltage;
 }
 
 bool battery_is_low()      { return last_battery_voltage < BATTERY_LOW_THRESHOLD; }
 bool battery_is_critical() { return last_battery_voltage < BATTERY_CRITICAL_THRESHOLD; }
 
-#endif // WOKWI_SIMULATION
+// ============================================================================
+// HARDWARE INITIALISATION
+// ============================================================================
 
-void hardware_init() {
+HardwareInitResult hardware_init() {
     Serial.begin(115200);
-    // Small delay for serial stability (Wokwi doesn't need this but doesn't hurt)
+    // Small delay for serial stability
     delay(50);
     Serial.println("\n\n=== Emotion Station Booting ===");
+
+    HardwareInitResult result = {true, true, true};
 
     // Initialise status LED (GPIO2 is a boot strapping pin - only configure AFTER boot completes)
     HAL_pin_mode(STATUS_LED_PIN, OUTPUT);
@@ -55,45 +52,41 @@ void hardware_init() {
 
     // Initialise NFC reader (Phase 3)
     if (!nfc_init()) {
-        HAL_log_println("WARNING: NFC initialisation failed");
-        HAL_log_println("System will continue without NFC functionality");
+        result.nfc_ok = false;
     }
 
-    // Initialise activity manager (Phase 5)
+    // Initialise activity manager (Phase 5) — mounts SD card
     if (!activity_manager_init()) {
-        HAL_log_println("WARNING: Activity manager init failed - using fallback");
+        result.sd_ok = false;
     }
 
     // Initialise audio (Phase 7)
     if (!audio_init()) {
-        HAL_log_println("WARNING: Audio init failed");
+        result.audio_ok = false;
     }
 
-    // Initialise data logger (Phase 8)
-    if (!logger_init()) {
-        HAL_log_println("WARNING: Logger init failed");
+    // Initialise data logger (Phase 8) — only if SD is available, non-critical
+    if (result.sd_ok) {
+        if (!logger_init()) {
+            HAL_log_println("WARNING: Logger init failed (non-critical)");
+        }
     }
 
-#ifndef WOKWI_SIMULATION
     pinMode(BATTERY_ADC_PIN, INPUT);
     analogSetAttenuation(ADC_11db);
-#endif
     battery_get_voltage();  // Prime the smoothing filter
     HAL_log_print("[BATTERY] Initial voltage: ");
-    Serial.print(last_battery_voltage);
+    Serial.print(last_battery_voltage);  // float — Serial only
     Serial.println("V");
 
     HAL_log_println("Hardware initialisation complete");
+    return result;
 }
 
 void hardware_enter_deep_sleep() {
-#ifdef WOKWI_SIMULATION
-    HAL_log_println("[DEEP_SLEEP] Simulated deep sleep (Wokwi)");
-#else
     HAL_log_println("[DEEP_SLEEP] Entering deep sleep mode...");
     Serial.flush();
     esp_deep_sleep_start();
-#endif
 }
 
 void hardware_heartbeat() {

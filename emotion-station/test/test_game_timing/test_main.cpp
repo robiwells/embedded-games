@@ -12,11 +12,13 @@
 
 // Include mocks BEFORE production code
 #include "../../test/mocks/platform_hal_fake.cpp"
+#include "../../test/mocks/mood_registry_mock.cpp"
 #include "../../test/mocks/nfc_handler_mock.cpp"
 #include "../../test/mocks/activity_manager_mock.cpp"
 #include "../../test/mocks/audio_player_mock.cpp"
 #include "../../test/mocks/data_logger_mock.cpp"
 #include "../../test/mocks/hardware_mock.cpp"
+#include "../../test/mocks/session_manager_mock.cpp"
 
 // Include production code directly (test-only pattern)
 #include "../../src/event_bus.cpp"
@@ -115,10 +117,24 @@ void test_selecting_transitions_immediately(void) {
 }
 
 void test_playing_transitions_when_audio_complete(void) {
-    // Mock audio_is_running() always returns false, so state transitions immediately
+    // Mock audio_is_running() returns false, so state transitions immediately
     fake_set_millis(0);
     game_transition_to(STATE_PLAYING_ACTIVITY);
 
+    game_update();
+    TEST_ASSERT_EQUAL(STATE_ACTIVITY_COMPLETE, game_get_current_state());
+}
+
+void test_playing_stays_in_state_while_audio_running(void) {
+    fake_set_millis(0);
+    fake_set_audio_running(true);  // Audio is playing
+    game_transition_to(STATE_PLAYING_ACTIVITY);
+
+    game_update();
+    TEST_ASSERT_EQUAL(STATE_PLAYING_ACTIVITY, game_get_current_state());
+
+    // Now audio ends
+    fake_set_audio_running(false);
     game_update();
     TEST_ASSERT_EQUAL(STATE_ACTIVITY_COMPLETE, game_get_current_state());
 }
@@ -289,6 +305,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_validating_transitions_immediately_on_valid_uid);
     RUN_TEST(test_selecting_transitions_immediately);
     RUN_TEST(test_playing_transitions_when_audio_complete);
+    RUN_TEST(test_playing_stays_in_state_while_audio_running);
     RUN_TEST(test_activity_complete_transitions_after_2_seconds);
     RUN_TEST(test_error_transitions_after_5_seconds);
     RUN_TEST(test_low_battery_does_not_auto_transition);

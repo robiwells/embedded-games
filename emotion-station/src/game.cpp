@@ -6,8 +6,7 @@
 #include "nfc_handler.h"
 #include "platform_hal.h"
 #include "activity_manager.h"
-#include "audio_player.h"
-#include "data_logger.h"
+#include "session_manager.h"
 #include <stdio.h>
 
 // State variables
@@ -21,10 +20,9 @@ static Activity* selected_activity = nullptr;     // Selected activity (Phase 5)
 static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
 static uint32_t debounce_start = 0;   // Token detection debounce timestamp
+static bool debounce_active = false;  // True when debounce timer is running
 
-// Session logging (Phase 8)
-static SessionLog current_session;
-static uint32_t activity_start_time = 0;
+// Session logging delegated to session_manager
 
 // Token edge detection (Phase 3.1)
 static bool previous_token_present = false;  // Track previous token state for edge detection
@@ -198,6 +196,13 @@ void game_init() {
     HAL_log_println("Game state machine initialising");
     current_state = STATE_IDLE;
     state_entry_time = HAL_millis();
+    selected_activity = nullptr;
+    current_mood = MOOD_UNKNOWN;
+    attempt_count = 0;
+    debounce_active = false;
+    debounce_start = 0;
+    previous_token_present = false;
+    token_processed = false;
 
     // Call initial state's enter function
     if (state_handlers[current_state].enter != nullptr) {
@@ -232,7 +237,8 @@ static void idle_enter() {
     led_set_animation(LED_IDLE);
     led_set_brightness(POWER_MODE_ECO);
     nfc_reset_retry_state();
-    debounce_start = 0; // Reset debounce timer
+    debounce_active = false;
+    debounce_start = 0;
 }
 
 static void idle_update() {
@@ -253,25 +259,29 @@ static void idle_update() {
     if (previous_token_present && !current_token_present) {
         HAL_log_println("[IDLE] Token removed, ready for next presentation");
         token_processed = false;
+        debounce_active = false;
         debounce_start = 0;
     }
 
     // Only trigger on rising edge (absent → present) or continuing debounce
     bool token_newly_presented = !previous_token_present && current_token_present;
-    bool should_process = token_newly_presented || (debounce_start != 0);
+    bool should_process = token_newly_presented || debounce_active;
 
     if (current_token_present && !token_processed && should_process) {
-        if (debounce_start == 0) {
-            debounce_start = HAL_millis() + 1;
+        if (!debounce_active) {
+            debounce_active = true;
+            debounce_start = HAL_millis();
             HAL_log_println("[IDLE] New token detected, debouncing...");
-        } else if (HAL_millis() >= debounce_start + NFC_DEBOUNCE_TIME_MS - 1) {
+        } else if (HAL_millis() - debounce_start >= NFC_DEBOUNCE_TIME_MS) {
             HAL_log_println("[IDLE] Token stable, transitioning to NFC_DETECTED");
             token_processed = true;
+            debounce_active = false;
             debounce_start = 0;
             game_transition_to(STATE_NFC_DETECTED);
         }
-    } else if (!current_token_present && debounce_start != 0) {
+    } else if (!current_token_present && debounce_active) {
         HAL_log_println("[IDLE] Token removed during debounce");
+        debounce_active = false;
         debounce_start = 0;
     }
 
@@ -308,20 +318,6 @@ static void nfc_detected_update() {
 
     if (nfc_read_uid(nfc_uid)) {
         HAL_log_println("[NFC_DETECTED] UID read successful");
-
-        // Publish NFC_DETECTED event with UID and placeholder mood
-        struct {
-            uint8_t uid[7];
-            MoodCategory mood;
-        } nfc_data;
-
-        for (uint8_t i = 0; i < 7; i++) {
-            nfc_data.uid[i] = nfc_uid[i];
-        }
-        nfc_data.mood = MOOD_HAPPY; // Placeholder - will be mapped in Phase 4
-
-        event_bus_publish(NFC_DETECTED, PRIORITY_HIGH, &nfc_data, sizeof(nfc_data));
-
         game_transition_to(STATE_VALIDATING);
     } else {
         attempt_count++;
@@ -356,6 +352,18 @@ static void validating_update() {
     } else {
         HAL_log_print("[VALIDATING] Valid mood: ");
         HAL_log_println(nfc_get_mood_name(current_mood));
+
+        // Publish NFC_DETECTED with the confirmed mood
+        struct {
+            uint8_t uid[7];
+            MoodCategory mood;
+        } nfc_data;
+        for (uint8_t i = 0; i < 7; i++) {
+            nfc_data.uid[i] = nfc_uid[i];
+        }
+        nfc_data.mood = current_mood;
+        event_bus_publish(NFC_DETECTED, PRIORITY_HIGH, &nfc_data, sizeof(nfc_data));
+
         game_transition_to(STATE_SELECTING);
     }
 }
@@ -400,35 +408,25 @@ static void playing_enter() {
     HAL_log_println("[PLAYING] Enter: Starting audio");
     led_set_animation(LED_BREATHING);
     if (selected_activity) {
-        audio_play(selected_activity->file_path);
-        activity_start_time = HAL_millis();
-        current_session.timestamp        = HAL_millis() / 1000;
-        current_session.mood             = current_mood;
-        current_session.activity_id      = selected_activity->id;
-        strncpy(current_session.activity_name, selected_activity->name, ACTIVITY_NAME_LENGTH - 1);
-        current_session.activity_name[ACTIVITY_NAME_LENGTH - 1] = '\0';
-        current_session.duration_seconds = 0;
-        current_session.completed        = false;
-        current_session.time_of_day      = activity_get_time_of_day();
+        HAL_audio_play(selected_activity->file_path);
+        session_begin(current_mood, selected_activity, activity_get_time_of_day());
     }
 }
 
 static void playing_update() {
-    if (!audio_is_running()) {
+    if (!HAL_audio_is_running()) {
         HAL_log_println("[PLAYING] Audio complete");
-        current_session.completed        = true;
-        current_session.duration_seconds = (HAL_millis() - activity_start_time) / 1000;
+        session_end(true);
         game_transition_to(STATE_ACTIVITY_COMPLETE);
     }
 }
 
 static void playing_exit() {
     HAL_log_println("[PLAYING] Exit: Stopping audio");
-    audio_stop();
-    if (current_session.duration_seconds == 0) {
-        current_session.duration_seconds = (HAL_millis() - activity_start_time) / 1000;
+    HAL_audio_stop();
+    if (session_is_active()) {
+        session_end(false);
     }
-    logger_log_session(&current_session);
 }
 
 // =============================================================================
@@ -442,7 +440,7 @@ static void complete_enter() {
 
 static void complete_update() {
     // Transition after 2 seconds back to IDLE
-    if (HAL_millis() - state_entry_time > 2000) {
+    if (HAL_millis() - state_entry_time > STATE_COMPLETE_TIMEOUT_MS) {
         game_transition_to(STATE_IDLE);
     }
 }
@@ -463,7 +461,7 @@ static void error_enter() {
 
 static void error_update() {
     // Transition after 5 seconds back to IDLE
-    if (HAL_millis() - state_entry_time > 5000) {
+    if (HAL_millis() - state_entry_time > STATE_ERROR_TIMEOUT_MS) {
         game_transition_to(STATE_IDLE);
     }
 }
@@ -487,7 +485,9 @@ static void low_battery_update() {
     if (HAL_millis() - last_check >= BATTERY_CHECK_INTERVAL_MS) {
         last_check = HAL_millis();
         float voltage = battery_get_voltage();
-        HAL_log_println("[LOW_BATTERY] Checking voltage");
+        char vbuf[48];
+        snprintf(vbuf, sizeof(vbuf), "[LOW_BATTERY] Voltage: %d mV", (int)(voltage * 1000));
+        HAL_log_println(vbuf);
         if (battery_is_critical()) {
             HAL_log_println("[LOW_BATTERY] CRITICAL - entering deep sleep");
             hardware_enter_deep_sleep();

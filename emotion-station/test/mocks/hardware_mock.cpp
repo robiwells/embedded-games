@@ -3,7 +3,7 @@
 // 3.45V: above LOW_THRESHOLD (3.4) so IDLE won't trigger; below RECOVERY_THRESHOLD (3.5) so LOW_BATTERY won't recover
 static float mock_battery_voltage = 3.45f;
 
-void hardware_init()           {}
+HardwareInitResult hardware_init() { return {true, true, true}; }
 void hardware_heartbeat()      {}
 void hardware_enter_deep_sleep() {}
 

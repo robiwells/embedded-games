@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #endif
 
+#include "config.h"
 #include "platform_hal.h"
 
 // Game states enum

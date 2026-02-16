@@ -13,11 +13,13 @@
 
 // Include mocks BEFORE production code
 #include "../../test/mocks/platform_hal_fake.cpp"
+#include "../../test/mocks/mood_registry_mock.cpp"
 #include "../../test/mocks/nfc_handler_mock.cpp"
 #include "../../test/mocks/activity_manager_mock.cpp"
 #include "../../test/mocks/audio_player_mock.cpp"
 #include "../../test/mocks/data_logger_mock.cpp"
 #include "../../test/mocks/hardware_mock.cpp"
+#include "../../test/mocks/session_manager_mock.cpp"
 
 // Include production code directly (test-only pattern)
 #include "../../src/event_bus.cpp"

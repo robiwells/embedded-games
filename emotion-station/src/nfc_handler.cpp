@@ -1,104 +1,16 @@
 /**
  * @file nfc_handler.cpp
- * @brief NFC reader implementation with PN532 I2C integration
+ * @brief NFC reader implementation with PN532 I2C integration (real hardware)
  *
  * Phase 3: NFC Reading with Retry Logic
  *
- * Two implementations:
- * - Real hardware: Uses Adafruit_PN532 library for ESP32
- * - Wokwi simulation: Mock NFC controlled by serial commands
+ * For Wokwi simulation, see src/mocks/nfc_handler_wokwi.cpp
  */
 
 #include "nfc_handler.h"
 #include "config.h"
 #include "platform_hal.h"
-
-#ifdef WOKWI_SIMULATION
-// ============================================================================
-// WOKWI SIMULATION MODE (Mock NFC for testing without hardware)
-// ============================================================================
-
-static bool mock_token_present = false;
-static bool nfc_ready = false;
-static uint8_t mock_uid_index = 0;
-
-static const uint8_t test_uids[][7] = {
-    {0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6},  // 0: Happy
-    {0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1},  // 1: Sad
-    {0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2},  // 2: Calm
-    {0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3},  // 3: Energetic
-    {0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4},  // 4: Anxious
-    {0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5},  // 5: Angry
-    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},   // 6: Invalid
-};
-
-bool nfc_init() {
-    HAL_log_println("NFC: MOCK MODE (Wokwi simulation)");
-    HAL_log_println("Use serial commands:");
-    HAL_log_println("  '0'-'5' - Select mood UID (0=Happy,1=Sad,2=Calm,3=Energetic,4=Anxious,5=Angry)");
-    HAL_log_println("  '6'     - Select invalid UID (triggers ERROR)");
-    HAL_log_println("  'p'     - Present token");
-    HAL_log_println("  'r'     - Remove token");
-    nfc_ready = true;
-    return true;
-}
-
-bool nfc_token_detected() {
-    return nfc_ready && mock_token_present;
-}
-
-bool nfc_read_uid(uint8_t uid[7]) {
-    if (!nfc_ready || !mock_token_present) {
-        return false;
-    }
-
-    // Copy selected test UID
-    for (uint8_t i = 0; i < 7; i++) {
-        uid[i] = test_uids[mock_uid_index][i];
-    }
-
-    // Log UID
-    HAL_log_print("NFC: MOCK UID: ");
-    char hex_buf[24];
-    snprintf(hex_buf, sizeof(hex_buf), "%02X %02X %02X %02X %02X %02X %02X",
-             uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6]);
-    HAL_log_println(hex_buf);
-
-    return true;
-}
-
-void nfc_reset_retry_state() {
-    // No-op in mock mode (state tracking done by game logic)
-}
-
-void nfc_test() {
-    HAL_log_println("\n=== NFC TEST (MOCK MODE) ===");
-    HAL_log_println("Commands:");
-    HAL_log_println("  'p' - Present token");
-    HAL_log_println("  'r' - Remove token");
-    HAL_log_println("\nTest token by pressing 'p'");
-}
-
-void nfc_handle_mock_command(char cmd) {
-    if (cmd >= '0' && cmd <= '6') {
-        mock_uid_index = (uint8_t)(cmd - '0');
-        const char* mood_names[] = {"Happy", "Sad", "Calm", "Energetic", "Anxious", "Angry", "Invalid"};
-        HAL_log_print("NFC: UID set to index ");
-        HAL_log_println(mood_names[mock_uid_index]);
-    } else if (cmd == 'p') {
-        mock_token_present = true;
-        HAL_log_println("NFC: MOCK token present");
-    } else if (cmd == 'r') {
-        mock_token_present = false;
-        HAL_log_println("NFC: MOCK token removed");
-    }
-}
-
-#else
-// ============================================================================
-// REAL HARDWARE MODE (PN532 NFC Reader via I2C)
-// ============================================================================
-
+#include "mood_registry.h"
 #include <Wire.h>
 #include <Adafruit_PN532.h>
 
@@ -109,10 +21,8 @@ static bool nfc_ready = false;
 bool nfc_init() {
     HAL_log_println("NFC: Initialising PN532...");
 
-    // Begin I2C communication
     nfc.begin();
 
-    // Verify PN532 is present and get firmware version
     uint32_t versiondata = nfc.getFirmwareVersion();
     if (!versiondata) {
         HAL_log_println("NFC: ERROR - PN532 not found!");
@@ -120,7 +30,6 @@ bool nfc_init() {
         return false;
     }
 
-    // Log firmware version
     char log_buf[60];
     snprintf(log_buf, sizeof(log_buf), "NFC: Found chip PN5%02X", (versiondata >> 24) & 0xFF);
     HAL_log_println(log_buf);
@@ -129,7 +38,6 @@ bool nfc_init() {
              (versiondata >> 16) & 0xFF, (versiondata >> 8) & 0xFF);
     HAL_log_println(log_buf);
 
-    // Configure for ISO14443A cards (NTAG213/215/216)
     nfc.SAMConfig();
 
     nfc_ready = true;
@@ -143,13 +51,9 @@ bool nfc_token_detected() {
     if (!nfc_ready) {
         return false;
     }
-
-    // Non-blocking detection (0ms timeout)
     uint8_t uid[7];
     uint8_t uidLength;
-    bool detected = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 0);
-
-    return detected;
+    return nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 0);
 }
 
 bool nfc_read_uid(uint8_t uid[7]) {
@@ -159,12 +63,10 @@ bool nfc_read_uid(uint8_t uid[7]) {
     }
 
     uint8_t uidLength;
-
-    // Blocking read with 1000ms timeout (safe for 4000ms watchdog)
+    HAL_watchdog_reset();
     bool success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, NFC_READ_TIMEOUT_MS);
 
     if (success && uidLength == 7) {
-        // Log successful UID read
         char log_buf[80];
         snprintf(log_buf, sizeof(log_buf), "NFC: UID Read: %02X %02X %02X %02X %02X %02X %02X",
                  uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6]);
@@ -185,7 +87,6 @@ bool nfc_read_uid(uint8_t uid[7]) {
 
 void nfc_reset_retry_state() {
     // No internal state to reset (retry state managed by game.cpp)
-    // This function exists for API completeness
 }
 
 void nfc_test() {
@@ -197,7 +98,6 @@ void nfc_test() {
     bool token_logged = false;
 
     while (HAL_millis() - start < 10000) {
-        // Feed watchdog during test
         HAL_watchdog_reset();
 
         if (nfc_token_detected()) {
@@ -205,7 +105,6 @@ void nfc_test() {
                 HAL_log_println("Token detected! Reading UID...");
                 token_logged = true;
             }
-
             uint8_t uid[7];
             if (nfc_read_uid(uid)) {
                 HAL_log_println("SUCCESS: UID read successfully");
@@ -220,8 +119,6 @@ void nfc_test() {
                 token_logged = false;
             }
         }
-
-        // Small delay to prevent tight loop
         HAL_delay(100);
     }
 
@@ -229,43 +126,27 @@ void nfc_test() {
     HAL_log_println("NFC test INCOMPLETE");
 }
 
-#endif // WOKWI_SIMULATION
-
 // ============================================================================
-// SHARED: UID → MOOD MAPPING TABLE (used by both builds)
+// UID → MOOD MAPPING (sourced from mood_registry)
 // ============================================================================
-
-static const NfcMoodMapping nfc_mappings[] = {
-    {{0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6}, MOOD_HAPPY,     "Happy"},
-    {{0x04, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1}, MOOD_SAD,       "Sad"},
-    {{0x04, 0xC3, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2}, MOOD_CALM,      "Calm"},
-    {{0x04, 0xD4, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3}, MOOD_ENERGETIC, "Energetic"},
-    {{0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4}, MOOD_ANXIOUS,   "Anxious"},
-    {{0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5}, MOOD_ANGRY,     "Angry"},
-};
-#define NUM_MAPPINGS (sizeof(nfc_mappings) / sizeof(nfc_mappings[0]))
 
 MoodCategory nfc_validate_uid(const uint8_t uid[7]) {
-    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
+    const MoodDefinition* all = mood_registry_all();
+    for (uint8_t i = 0; i < NUM_MOODS; i++) {
         bool match = true;
         for (uint8_t j = 0; j < 7; j++) {
-            if (uid[j] != nfc_mappings[i].uid[j]) {
+            if (uid[j] != all[i].test_uid[j]) {
                 match = false;
                 break;
             }
         }
         if (match) {
-            return nfc_mappings[i].mood;
+            return all[i].category;
         }
     }
     return MOOD_UNKNOWN;
 }
 
 const char* nfc_get_mood_name(MoodCategory mood) {
-    for (uint8_t i = 0; i < NUM_MAPPINGS; i++) {
-        if (nfc_mappings[i].mood == mood) {
-            return nfc_mappings[i].display_name;
-        }
-    }
-    return "Unknown";
+    return mood_registry_name(mood);
 }
