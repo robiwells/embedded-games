@@ -73,13 +73,19 @@ bool nfc_read_uid(uint8_t uid[7]);
 void nfc_reset_retry_state();
 
 /**
- * @brief Test NFC reader functionality
+ * @brief Start non-blocking NFC reader test
  *
- * Interactive test that waits 10 seconds for tag detection.
- * Logs detailed debugging information.
- * Call via serial command 'n'.
+ * Begins a 10-second NFC test window without blocking.
+ * Call via serial command 'n'. Call nfc_test_update() every loop iteration.
  */
 void nfc_test();
+
+/**
+ * @brief Update non-blocking NFC test (call every loop iteration)
+ *
+ * Progresses the NFC test state machine. No-op when test is not active.
+ */
+void nfc_test_update();
 
 /**
  * @brief Validate a 7-byte UID against the known mood mapping table

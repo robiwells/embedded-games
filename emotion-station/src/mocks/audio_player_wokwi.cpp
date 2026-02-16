@@ -24,12 +24,13 @@ void audio_loop() {
     }
 }
 
-void audio_play(const char* file_path) {
+bool audio_play(const char* file_path) {
     char buf[80];
     snprintf(buf, sizeof(buf), "Audio: MOCK play: %s", file_path);
     HAL_log_println(buf);
     mock_playing = true;
     mock_start_time = HAL_millis();
+    return true;
 }
 
 void audio_stop() {

@@ -65,6 +65,10 @@ void nfc_test() {
     HAL_log_println("\nTest token by pressing 'p'");
 }
 
+void nfc_test_update() {
+    // No-op in Wokwi mock — test is driven by serial commands
+}
+
 void nfc_handle_mock_command(char cmd) {
     if (cmd >= '0' && cmd <= '6') {
         mock_uid_index = (uint8_t)(cmd - '0');

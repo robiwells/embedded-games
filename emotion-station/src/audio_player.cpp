@@ -24,8 +24,8 @@ void audio_loop() {
     audio.loop();
 }
 
-void audio_play(const char* file_path) {
-    audio.connecttoFS(SD, file_path);
+bool audio_play(const char* file_path) {
+    return audio.connecttoFS(SD, file_path);
 }
 
 void audio_stop() {

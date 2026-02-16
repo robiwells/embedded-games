@@ -49,7 +49,8 @@ bool logger_log_session(const SessionLog* session) {
         return false;
     }
 
-    char row[128];
+    static_assert(ACTIVITY_NAME_LENGTH <= 64, "data_logger row buffer may be too small — increase row[] if ACTIVITY_NAME_LENGTH grows");
+    char row[192];
     snprintf(row, sizeof(row), "%lu,%s,%u,%s,%u,%s,%s",
         (unsigned long)session->timestamp,
         mood_registry_name(session->mood),

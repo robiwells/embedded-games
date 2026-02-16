@@ -6,6 +6,7 @@
 #include "hardware.h"
 #include "config.h"
 #include "platform_hal.h"
+#include "event_bus.h"
 #include "nfc_handler.h"
 #include "activity_manager.h"
 #include "audio_player.h"
@@ -71,6 +72,28 @@ HardwareInitResult hardware_init() {
 
 void hardware_enter_deep_sleep() {
     HAL_log_println("[DEEP_SLEEP] Simulated deep sleep (Wokwi)");
+}
+
+void battery_manager_update() {
+    static uint32_t last_check = 0;
+    if (HAL_millis() - last_check < BATTERY_CHECK_INTERVAL_MS) return;
+    last_check = HAL_millis();
+
+    static bool was_low = false;
+    bool low_now = battery_is_low();
+
+    if (!was_low && low_now) {
+        was_low = true;
+        HAL_log_println("[BATTERY] Voltage low — publishing BATTERY_LOW event");
+        event_bus_publish(BATTERY_LOW, PRIORITY_CRITICAL, NULL, 0);
+    } else if (was_low && !low_now) {
+        was_low = false;
+    }
+
+    if (battery_is_critical()) {
+        HAL_log_println("[BATTERY] CRITICAL — entering deep sleep");
+        hardware_enter_deep_sleep();
+    }
 }
 
 void hardware_heartbeat() {

@@ -184,6 +184,16 @@ bool activity_manager_init() {
             if (strcmp(ts, "evening")   == 0) a->time_flags[TIME_EVENING]   = true;
             if (strcmp(ts, "bedtime")   == 0) a->time_flags[TIME_BEDTIME]   = true;
         }
+
+        // Skip activities that are unreachable at any time of day
+        bool has_time = false;
+        for (int t = 0; t < 4; t++) { if (a->time_flags[t]) { has_time = true; break; } }
+        if (!has_time) {
+            char wbuf[64];
+            snprintf(wbuf, sizeof(wbuf), "[ACTIVITY] WARNING: id=%u '%s' has no time_flags, skipping", a->id, a->name);
+            HAL_log_println(wbuf);
+            activity_count--;
+        }
     }
 
     char buf[48];
@@ -311,7 +321,7 @@ Activity* activity_select(MoodCategory mood, TimeOfDay time) {
     // Early return when only 1 candidate — history would fill and clear every play
     if (pool_size <= 1) {
         Activity* selected = &activities[pool[0]];
-        snprintf(buf, sizeof(buf), "[ACTIVITY] Only 1 candidate, skipping history: '%s'", selected->name);
+        snprintf(buf, sizeof(buf), "[ACTIVITY] WARNING: Only 1 activity for mood/time — no variety possible: '%s'", selected->name);
         HAL_log_println(buf);
         return selected;
     }

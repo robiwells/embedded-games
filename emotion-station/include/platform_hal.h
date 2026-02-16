@@ -46,7 +46,7 @@ typedef struct {
     void (*watchdog_reset)(void);       ///< Reset watchdog timer
 
     // ========= Audio Functions =========
-    void (*audio_play)(const char* path);   ///< Start audio playback from SD
+    bool (*audio_play)(const char* path);   ///< Start audio playback from SD; returns false if file not found
     void (*audio_stop)(void);               ///< Stop current playback
     bool (*audio_is_running)(void);         ///< True if audio currently playing
     void (*audio_loop)(void);               ///< Must be called every loop iteration

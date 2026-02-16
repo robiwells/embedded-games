@@ -23,6 +23,7 @@ static uint32_t debounce_start = 0;   // Token detection debounce timestamp
 static bool debounce_active = false;  // True when debounce timer is running
 
 // Session logging delegated to session_manager
+static bool s_audio_completed = false;  // Set true when audio finishes naturally
 
 // Token edge detection (Phase 3.1)
 static bool previous_token_present = false;  // Track previous token state for edge detection
@@ -192,6 +193,14 @@ void handle_error(ErrorCode error) {
     game_transition_to(STATE_ERROR);
 }
 
+static void on_battery_low_event(const Event* event) {
+    (void)event;
+    if (current_state != STATE_LOW_BATTERY && current_state != STATE_ERROR) {
+        HAL_log_println("[BATTERY] BATTERY_LOW event — transitioning to LOW_BATTERY");
+        game_transition_to(STATE_LOW_BATTERY);
+    }
+}
+
 void game_init() {
     HAL_log_println("Game state machine initialising");
     current_state = STATE_IDLE;
@@ -203,6 +212,9 @@ void game_init() {
     debounce_start = 0;
     previous_token_present = false;
     token_processed = false;
+
+    // Subscribe to battery events
+    event_bus_subscribe(BATTERY_LOW, on_battery_low_event);
 
     // Call initial state's enter function
     if (state_handlers[current_state].enter != nullptr) {
@@ -242,17 +254,6 @@ static void idle_enter() {
 }
 
 static void idle_update() {
-    // Periodic battery check
-    static uint32_t last_battery_check = 0;
-    if (HAL_millis() - last_battery_check >= BATTERY_CHECK_INTERVAL_MS) {
-        last_battery_check = HAL_millis();
-        if (battery_is_low()) {
-            HAL_log_println("[IDLE] Battery low, transitioning to LOW_BATTERY");
-            game_transition_to(STATE_LOW_BATTERY);
-            return;
-        }
-    }
-
     bool current_token_present = nfc_token_detected();
 
     // Detect falling edge: token was present, now removed
@@ -407,8 +408,13 @@ static void selecting_exit() {
 static void playing_enter() {
     HAL_log_println("[PLAYING] Enter: Starting audio");
     led_set_animation(LED_BREATHING);
+    s_audio_completed = false;
     if (selected_activity) {
-        HAL_audio_play(selected_activity->file_path);
+        if (!HAL_audio_play(selected_activity->file_path)) {
+            HAL_log_println("[PLAYING] ERROR: Audio file not found");
+            handle_error(ERROR_AUDIO_FILE_NOT_FOUND);
+            return;
+        }
         session_begin(current_mood, selected_activity, activity_get_time_of_day());
     }
 }
@@ -416,7 +422,7 @@ static void playing_enter() {
 static void playing_update() {
     if (!HAL_audio_is_running()) {
         HAL_log_println("[PLAYING] Audio complete");
-        session_end(true);
+        s_audio_completed = true;
         game_transition_to(STATE_ACTIVITY_COMPLETE);
     }
 }
@@ -425,7 +431,7 @@ static void playing_exit() {
     HAL_log_println("[PLAYING] Exit: Stopping audio");
     HAL_audio_stop();
     if (session_is_active()) {
-        session_end(false);
+        session_end(s_audio_completed);
     }
 }
 
@@ -481,6 +487,8 @@ static void low_battery_enter() {
 }
 
 static void low_battery_update() {
+    // battery_manager_update() (called from main loop) handles ADC polling and deep sleep.
+    // Here we only check for voltage recovery to return to normal operation.
     static uint32_t last_check = 0;
     if (HAL_millis() - last_check >= BATTERY_CHECK_INTERVAL_MS) {
         last_check = HAL_millis();
@@ -488,10 +496,7 @@ static void low_battery_update() {
         char vbuf[48];
         snprintf(vbuf, sizeof(vbuf), "[LOW_BATTERY] Voltage: %d mV", (int)(voltage * 1000));
         HAL_log_println(vbuf);
-        if (battery_is_critical()) {
-            HAL_log_println("[LOW_BATTERY] CRITICAL - entering deep sleep");
-            hardware_enter_deep_sleep();
-        } else if (voltage > BATTERY_RECOVERY_THRESHOLD) {
+        if (voltage >= BATTERY_RECOVERY_THRESHOLD) {
             HAL_log_println("[LOW_BATTERY] Voltage recovered, returning to IDLE");
             game_transition_to(STATE_IDLE);
         }

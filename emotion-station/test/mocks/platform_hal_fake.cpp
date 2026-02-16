@@ -159,11 +159,12 @@ static void fake_watchdog_reset(void) {
 
 // ========= Audio Functions =========
 
-static void fake_audio_play(const char* path) {
+static bool fake_audio_play(const char* path) {
     if (path) {
         strncpy(fake_audio_path, path, sizeof(fake_audio_path) - 1);
     }
     fake_audio_running = true;
+    return true;
 }
 
 static void fake_audio_stop(void) {

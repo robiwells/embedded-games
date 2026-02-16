@@ -5,7 +5,7 @@
 
 bool audio_init();
 void audio_loop();
-void audio_play(const char* file_path);
+bool audio_play(const char* file_path);
 void audio_stop();
 bool audio_is_running();
 void audio_test();

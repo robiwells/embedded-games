@@ -16,6 +16,9 @@ void setup() {
     // Initialise HAL first (must be done before any other modules)
     platform_hal = &platform_real;
 
+    // Event bus must be initialised before game_init() which subscribes to events
+    event_bus_init();
+
     // LED and game must be ready before hardware_init() may call handle_error()
     led_init();
     game_init();
@@ -30,9 +33,6 @@ void setup() {
     if (!hw.audio_ok) handle_error(ERROR_AUDIO_INIT_FAILED);
 
     time_service_init();
-
-    // Initialise event bus (Phase 2.5)
-    event_bus_init();
 
 #ifndef WOKWI_SIMULATION
     if (reset_reason == ESP_RST_WDT || reset_reason == ESP_RST_TASK_WDT) {
@@ -76,8 +76,10 @@ void loop() {
     event_bus_process();
 
     hardware_heartbeat();
+    battery_manager_update();
     led_update();
     audio_loop();
+    nfc_test_update();
     game_update();
 
     // Test triggers from serial input

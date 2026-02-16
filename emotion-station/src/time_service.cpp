@@ -30,7 +30,8 @@ void time_service_init() {
     const char* months = "JanFebMarAprMayJunJulAugSepOctNovDec";
     char mon_str[4] = {};
     sscanf(__DATE__, "%3s %d %d", mon_str, &day, &year);
-    month = ((strstr(months, mon_str) - months) / 3) + 1;
+    const char* mon_pos = strstr(months, mon_str);
+    month = mon_pos ? (int)((mon_pos - months) / 3) + 1 : 1;
     sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
 
     timeinfo.tm_year = year - 1900;
@@ -68,11 +69,15 @@ uint8_t time_service_get_hour() {
     struct tm timeinfo;
     time(&now);
     localtime_r(&now, &timeinfo);
-    char buf[48];
-    snprintf(buf, sizeof(buf), "[TIME] RTC: %04d-%02d-%02d hour=%02d",
-             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
-             timeinfo.tm_mday, timeinfo.tm_hour);
-    HAL_log_println(buf);
+    static uint8_t last_logged_hour = 255;
+    if ((uint8_t)timeinfo.tm_hour != last_logged_hour) {
+        last_logged_hour = (uint8_t)timeinfo.tm_hour;
+        char buf[48];
+        snprintf(buf, sizeof(buf), "[TIME] RTC: %04d-%02d-%02d hour=%02d",
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+                 timeinfo.tm_mday, timeinfo.tm_hour);
+        HAL_log_println(buf);
+    }
     return (uint8_t)timeinfo.tm_hour;
 }
 

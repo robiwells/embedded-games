@@ -89,41 +89,53 @@ void nfc_reset_retry_state() {
     // No internal state to reset (retry state managed by game.cpp)
 }
 
+// Non-blocking NFC test state
+static bool nfc_test_active = false;
+static uint32_t nfc_test_start = 0;
+static bool nfc_test_token_logged = false;
+
 void nfc_test() {
+    if (nfc_test_active) {
+        HAL_log_println("NFC test already running");
+        return;
+    }
     HAL_log_println("\n=== NFC TEST ===");
     HAL_log_println("Tap an NFC tag to test reading...");
     HAL_log_println("Test window: 10 seconds");
+    nfc_test_active = true;
+    nfc_test_start = HAL_millis();
+    nfc_test_token_logged = false;
+}
 
-    uint32_t start = HAL_millis();
-    bool token_logged = false;
+void nfc_test_update() {
+    if (!nfc_test_active) return;
 
-    while (HAL_millis() - start < 10000) {
-        HAL_watchdog_reset();
-
-        if (nfc_token_detected()) {
-            if (!token_logged) {
-                HAL_log_println("Token detected! Reading UID...");
-                token_logged = true;
-            }
-            uint8_t uid[7];
-            if (nfc_read_uid(uid)) {
-                HAL_log_println("SUCCESS: UID read successfully");
-                HAL_log_println("NFC test PASSED");
-                return;
-            } else {
-                HAL_log_println("FAILED: Could not read UID");
-            }
-        } else {
-            if (token_logged) {
-                HAL_log_println("Token removed");
-                token_logged = false;
-            }
-        }
-        HAL_delay(100);
+    if (HAL_millis() - nfc_test_start >= 10000) {
+        HAL_log_println("Test timeout - no tag detected");
+        HAL_log_println("NFC test INCOMPLETE");
+        nfc_test_active = false;
+        return;
     }
 
-    HAL_log_println("Test timeout - no tag detected");
-    HAL_log_println("NFC test INCOMPLETE");
+    if (nfc_token_detected()) {
+        if (!nfc_test_token_logged) {
+            HAL_log_println("Token detected! Reading UID...");
+            nfc_test_token_logged = true;
+        }
+        uint8_t uid[7];
+        if (nfc_read_uid(uid)) {
+            HAL_log_println("SUCCESS: UID read successfully");
+            HAL_log_println("NFC test PASSED");
+            nfc_test_active = false;
+        } else {
+            HAL_log_println("FAILED: Could not read UID");
+        }
+    } else {
+        if (nfc_test_token_logged) {
+            HAL_log_println("Token removed");
+            nfc_test_token_logged = false;
+        }
+    }
 }
 
 // ============================================================================

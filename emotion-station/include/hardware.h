@@ -12,6 +12,7 @@ typedef struct {
 HardwareInitResult hardware_init();
 void hardware_heartbeat();
 void hardware_enter_deep_sleep();
+void battery_manager_update();
 
 float battery_get_voltage();
 bool  battery_is_low();

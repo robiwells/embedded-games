@@ -106,8 +106,8 @@ static void real_watchdog_reset(void) {
 
 // ========= Audio Functions =========
 
-static void real_audio_play(const char* path) {
-    audio_play(path);
+static bool real_audio_play(const char* path) {
+    return audio_play(path);
 }
 
 static void real_audio_stop(void) {
