@@ -29,6 +29,7 @@
 extern void mock_nfc_set_token_present(bool present);
 extern void mock_nfc_set_read_success(bool success);
 extern void mock_nfc_set_uid(const uint8_t uid[7]);
+extern void mock_nfc_publish_token_present();
 
 // Mirrors the hardware loop: update state, then dispatch any queued events
 static void game_step() {
@@ -40,6 +41,8 @@ static void game_step() {
 void setUp(void) {
     fake_reset();
     platform_hal = &platform_fake;
+    event_bus_init();
+    led_controller_init();
     game_init();
     fake_set_millis(0);
     // Reset NFC mock state
@@ -56,28 +59,19 @@ void tearDown(void) {
 // =============================================================================
 
 void test_idle_auto_transitions_after_5_seconds(void) {
-    // Phase 3: Idle now requires NFC token detection with 100ms debounce
+    // Debounce now lives in nfc_update() (nfc_handler), not idle_update().
+    // Simulate by publishing NFC_TOKEN_PRESENT directly and processing the event.
     fake_set_millis(0);
 
-    // Force fresh entry into IDLE (transition from ERROR ensures idle_enter() is called)
+    // Force fresh entry into IDLE
     game_transition_to(STATE_ERROR);
     game_transition_to(STATE_IDLE);
+    event_bus_process(); // flush any queued events from above transitions
 
-    // Present token
-    mock_nfc_set_token_present(true);
+    // Publish token-stable event (as nfc_update() would after 100ms debounce)
+    mock_nfc_publish_token_present();
+    event_bus_process();
 
-    // First update - debounce starts
-    game_update();
-    TEST_ASSERT_EQUAL(STATE_IDLE, game_get_current_state());
-
-    // Advance 99ms - should NOT transition yet (need >= 100ms)
-    fake_advance_time(99);
-    game_update();
-    TEST_ASSERT_EQUAL(STATE_IDLE, game_get_current_state());
-
-    // Advance 1 more ms (total 100ms) - should transition
-    fake_advance_time(1);
-    game_update();
     TEST_ASSERT_EQUAL(STATE_NFC_DETECTED, game_get_current_state());
 }
 

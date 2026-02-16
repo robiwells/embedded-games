@@ -22,3 +22,7 @@ void session_end(bool completed) {
 bool session_is_active() {
     return s_active;
 }
+
+void session_manager_init() {
+    // No-op in mock
+}

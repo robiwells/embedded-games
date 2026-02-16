@@ -7,8 +7,12 @@
 #include <stdint.h>
 #include <string.h>
 
+// platform_hal needed by event_bus.cpp
+#include "../../test/mocks/platform_hal_fake.cpp"
 // mood_registry must come before nfc mock (nfc_get_mood_name delegates to it)
 #include "../../test/mocks/mood_registry_mock.cpp"
+// event_bus needed because nfc_handler_mock includes it
+#include "../../src/event_bus/event_bus.cpp"
 // Include mock (provides nfc_validate_uid and nfc_get_mood_name implementations)
 #include "../../test/mocks/nfc_handler_mock.cpp"
 
@@ -25,7 +29,10 @@ static const uint8_t uid_anxious[]   = {0x04, 0xE5, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4
 static const uint8_t uid_angry[]     = {0x04, 0xF6, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
 static const uint8_t uid_invalid[]   = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-void setUp(void) {}
+void setUp(void) {
+    fake_reset();
+    platform_hal = &platform_fake;
+}
 void tearDown(void) {}
 
 // =============================================================================

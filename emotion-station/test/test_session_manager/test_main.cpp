@@ -12,6 +12,7 @@
 #include "../../test/mocks/mood_registry_mock.cpp"
 
 // Include production code under test
+#include "../../src/event_bus/event_bus.cpp"
 #include "../../src/session_manager/session_manager.cpp"
 
 // Declare mock helpers

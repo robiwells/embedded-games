@@ -18,12 +18,13 @@
 #include "config.h"
 #include "game.h"
 
-// ========= EVENT TYPE ENUMERATION (11 types as per architecture.md Section 3.5) =========
+// ========= EVENT TYPE ENUMERATION (12 types as per architecture.md Section 3.5) =========
 
 typedef enum {
-    // Hardware events (4)
+    // Hardware events (5)
     NFC_DETECTED,
     NFC_REMOVED,
+    NFC_TOKEN_PRESENT,   // Token stable after debounce (no UID yet)
     AUDIO_COMPLETE,
     BATTERY_LOW,
 

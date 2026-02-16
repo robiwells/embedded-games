@@ -1,12 +1,10 @@
 #include "game.h"
-#include "led_controller.h"
 #include "config.h"
 #include "hardware.h"
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "platform_hal.h"
 #include "activity_manager.h"
-#include "session_manager.h"
 #include <stdio.h>
 
 // State variables
@@ -19,15 +17,9 @@ static MoodCategory current_mood = MOOD_UNKNOWN;  // Mood mapped from UID (Phase
 static Activity* selected_activity = nullptr;     // Selected activity (Phase 5)
 static uint8_t attempt_count = 0;     // Retry attempt counter
 static uint32_t retry_timestamp = 0;  // Timestamp for retry delays
-static uint32_t debounce_start = 0;   // Token detection debounce timestamp
-static bool debounce_active = false;  // True when debounce timer is running
 
-// Session logging delegated to session_manager
-static bool s_audio_completed = false;  // Set true when audio finishes naturally
-
-// Token edge detection (Phase 3.1)
-static bool previous_token_present = false;  // Track previous token state for edge detection
-static bool token_processed = false;         // True if current token presentation already processed
+// Session logging — set true when audio finishes naturally, published in SESSION_COMPLETED
+static bool s_audio_completed = false;
 
 // Test sequence states
 typedef enum {
@@ -63,11 +55,13 @@ typedef struct {
 // Guards (e.g. don't override ERROR) are applied inside game_process_event().
 static const Transition transition_table[] = {
     // Battery critical can interrupt from any state except ERROR / LOW_BATTERY (guarded below)
-    { NUM_STATES,             BATTERY_LOW,    STATE_LOW_BATTERY       },
+    { NUM_STATES,             BATTERY_LOW,       STATE_LOW_BATTERY       },
+    // NFC token stable after debounce — move from IDLE to NFC_DETECTED
+    { STATE_IDLE,             NFC_TOKEN_PRESENT, STATE_NFC_DETECTED      },
     // NFC validated — move from VALIDATING to SELECTING
-    { STATE_VALIDATING,       NFC_DETECTED,   STATE_SELECTING         },
+    { STATE_VALIDATING,       NFC_DETECTED,      STATE_SELECTING         },
     // Audio finished naturally — move to ACTIVITY_COMPLETE
-    { STATE_PLAYING_ACTIVITY, AUDIO_COMPLETE, STATE_ACTIVITY_COMPLETE },
+    { STATE_PLAYING_ACTIVITY, AUDIO_COMPLETE,    STATE_ACTIVITY_COMPLETE },
 };
 
 // State names for debug logging
@@ -240,15 +234,12 @@ void game_init() {
     selected_activity = nullptr;
     current_mood = MOOD_UNKNOWN;
     attempt_count = 0;
-    debounce_active = false;
-    debounce_start = 0;
-    previous_token_present = false;
-    token_processed = false;
 
     // Subscribe to events that drive state transitions via the transition table
-    event_bus_subscribe(BATTERY_LOW,    game_process_event);
-    event_bus_subscribe(NFC_DETECTED,   game_process_event);
-    event_bus_subscribe(AUDIO_COMPLETE, game_process_event);
+    event_bus_subscribe(BATTERY_LOW,       game_process_event);
+    event_bus_subscribe(NFC_TOKEN_PRESENT, game_process_event);
+    event_bus_subscribe(NFC_DETECTED,      game_process_event);
+    event_bus_subscribe(AUDIO_COMPLETE,    game_process_event);
 
     // Call initial state's enter function
     if (state_handlers[current_state].enter != nullptr) {
@@ -279,48 +270,13 @@ GameState game_get_current_state() {
 // =============================================================================
 
 static void idle_enter() {
-    HAL_log_println("[IDLE] Enter: LED pulsing white (eco mode)");
-    led_set_animation(LED_IDLE);
-    led_set_brightness(POWER_MODE_ECO);
+    HAL_log_println("[IDLE] Enter");
     nfc_reset_retry_state();
-    debounce_active = false;
-    debounce_start = 0;
 }
 
 static void idle_update() {
-    bool current_token_present = nfc_token_detected();
-
-    // Detect falling edge: token was present, now removed
-    if (previous_token_present && !current_token_present) {
-        HAL_log_println("[IDLE] Token removed, ready for next presentation");
-        token_processed = false;
-        debounce_active = false;
-        debounce_start = 0;
-    }
-
-    // Only trigger on rising edge (absent → present) or continuing debounce
-    bool token_newly_presented = !previous_token_present && current_token_present;
-    bool should_process = token_newly_presented || debounce_active;
-
-    if (current_token_present && !token_processed && should_process) {
-        if (!debounce_active) {
-            debounce_active = true;
-            debounce_start = HAL_millis();
-            HAL_log_println("[IDLE] New token detected, debouncing...");
-        } else if (HAL_millis() - debounce_start >= NFC_DEBOUNCE_TIME_MS) {
-            HAL_log_println("[IDLE] Token stable, transitioning to NFC_DETECTED");
-            token_processed = true;
-            debounce_active = false;
-            debounce_start = 0;
-            game_transition_to(STATE_NFC_DETECTED);
-        }
-    } else if (!current_token_present && debounce_active) {
-        HAL_log_println("[IDLE] Token removed during debounce");
-        debounce_active = false;
-        debounce_start = 0;
-    }
-
-    previous_token_present = current_token_present;
+    // Token detection and debounce moved to nfc_update() in nfc_handler.
+    // Transition IDLE → NFC_DETECTED is driven by NFC_TOKEN_PRESENT event.
 }
 
 static void idle_exit() {
@@ -332,9 +288,7 @@ static void idle_exit() {
 // =============================================================================
 
 static void nfc_detected_enter() {
-    HAL_log_println("[NFC_DETECTED] Enter: Green flash");
-    led_set_animation(LED_DETECTED);
-    led_set_brightness(POWER_MODE_NORMAL);
+    HAL_log_println("[NFC_DETECTED] Enter");
     attempt_count = 0;
     retry_timestamp = HAL_millis();
 }
@@ -440,7 +394,6 @@ static void selecting_exit() {
 
 static void playing_enter() {
     HAL_log_println("[PLAYING] Enter: Starting audio");
-    led_set_animation(LED_BREATHING);
     s_audio_completed = false;
     if (selected_activity) {
         if (!HAL_audio_play(selected_activity->file_path)) {
@@ -448,7 +401,12 @@ static void playing_enter() {
             handle_error(ERROR_AUDIO_FILE_NOT_FOUND);
             return;
         }
-        session_begin(current_mood, selected_activity, activity_get_time_of_day());
+        struct {
+            const Activity* activity;
+            MoodCategory    mood;
+            TimeOfDay       time_of_day;
+        } session_start = { selected_activity, current_mood, activity_get_time_of_day() };
+        event_bus_publish(SESSION_STARTED, PRIORITY_NORMAL, &session_start, sizeof(session_start));
     }
 }
 
@@ -464,9 +422,8 @@ static void playing_update() {
 static void playing_exit() {
     HAL_log_println("[PLAYING] Exit: Stopping audio");
     HAL_audio_stop();
-    if (session_is_active()) {
-        session_end(s_audio_completed);
-    }
+    struct { bool completed; } session_end_data = { s_audio_completed };
+    event_bus_publish(SESSION_COMPLETED, PRIORITY_NORMAL, &session_end_data, sizeof(session_end_data));
 }
 
 // =============================================================================
@@ -474,8 +431,7 @@ static void playing_exit() {
 // =============================================================================
 
 static void complete_enter() {
-    HAL_log_println("[COMPLETE] Enter: Sparkle animation");
-    led_set_animation(LED_SPARKLE);
+    HAL_log_println("[COMPLETE] Enter");
 }
 
 static void complete_update() {
@@ -494,9 +450,7 @@ static void complete_exit() {
 // =============================================================================
 
 static void error_enter() {
-    HAL_log_println("[ERROR] Enter: Red pulsing (eco mode)");
-    led_set_animation(LED_ERROR);
-    led_set_brightness(POWER_MODE_ECO);
+    HAL_log_println("[ERROR] Enter");
 }
 
 static void error_update() {
@@ -515,9 +469,7 @@ static void error_exit() {
 // =============================================================================
 
 static void low_battery_enter() {
-    HAL_log_println("[LOW_BATTERY] Enter: Red pulsing (critical brightness)");
-    led_set_animation(LED_ERROR);
-    led_set_brightness(POWER_MODE_CRITICAL);
+    HAL_log_println("[LOW_BATTERY] Enter");
 }
 
 static void low_battery_update() {

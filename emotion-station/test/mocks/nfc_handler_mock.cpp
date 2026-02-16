@@ -8,6 +8,7 @@
 #include "nfc_handler.h"
 #include "mood_registry.h"
 #include "platform_hal.h"
+#include "event_bus.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -37,6 +38,10 @@ bool nfc_read_uid(uint8_t uid[7]) {
 
 void nfc_reset_retry_state() {
     // No-op in mock (state managed by game.cpp)
+}
+
+void nfc_update() {
+    // No-op in mock — tests use mock_nfc_publish_token_present() directly
 }
 
 void nfc_test() {
@@ -75,4 +80,9 @@ void mock_nfc_set_read_success(bool success) {
 
 void mock_nfc_set_uid(const uint8_t uid[7]) {
     memcpy(mock_uid, uid, 7);
+}
+
+// Directly publish NFC_TOKEN_PRESENT — simulates a debounce completing
+void mock_nfc_publish_token_present() {
+    event_bus_publish(NFC_TOKEN_PRESENT, PRIORITY_HIGH, nullptr, 0);
 }

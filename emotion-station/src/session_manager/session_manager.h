@@ -3,6 +3,10 @@
 
 #include "config.h"
 
+// Subscribe to SESSION_STARTED and SESSION_COMPLETED events.
+// Call once in setup() after event_bus_init().
+void session_manager_init();
+
 // Begin a new session. Records start time and initialises the session log entry.
 void session_begin(MoodCategory mood, const Activity* activity, TimeOfDay time_of_day);
 

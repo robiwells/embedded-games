@@ -11,12 +11,19 @@
 #include "config.h"
 #include "platform_hal.h"
 #include "mood_registry.h"
+#include "event_bus.h"
 #include <Wire.h>
 #include <Adafruit_PN532.h>
 
 // PN532 instance (I2C mode using SDA/SCL pins)
 static Adafruit_PN532 nfc(I2C_SDA_PIN, I2C_SCL_PIN);
 static bool nfc_ready = false;
+
+// Debounce state (moved from game.cpp)
+static bool debounce_active = false;
+static uint32_t debounce_start = 0;
+static bool previous_token_present = false;
+static bool token_processed = false;
 
 bool nfc_init() {
     HAL_log_println("NFC: Initialising PN532...");
@@ -86,7 +93,46 @@ bool nfc_read_uid(uint8_t uid[7]) {
 }
 
 void nfc_reset_retry_state() {
-    // No internal state to reset (retry state managed by game.cpp)
+    debounce_active = false;
+    debounce_start = 0;
+    previous_token_present = false;
+    token_processed = false;
+}
+
+void nfc_update() {
+    bool current_token_present = nfc_token_detected();
+
+    // Falling edge: token removed
+    if (previous_token_present && !current_token_present) {
+        HAL_log_println("[NFC] Token removed");
+        token_processed = false;
+        debounce_active = false;
+        debounce_start = 0;
+        event_bus_publish(NFC_REMOVED, PRIORITY_HIGH, nullptr, 0);
+    }
+
+    bool token_newly_presented = !previous_token_present && current_token_present;
+    bool should_process = token_newly_presented || debounce_active;
+
+    if (current_token_present && !token_processed && should_process) {
+        if (!debounce_active) {
+            debounce_active = true;
+            debounce_start = HAL_millis();
+            HAL_log_println("[NFC] Token detected, debouncing...");
+        } else if (HAL_millis() - debounce_start >= NFC_DEBOUNCE_TIME_MS) {
+            HAL_log_println("[NFC] Token stable, publishing NFC_TOKEN_PRESENT");
+            token_processed = true;
+            debounce_active = false;
+            debounce_start = 0;
+            event_bus_publish(NFC_TOKEN_PRESENT, PRIORITY_HIGH, nullptr, 0);
+        }
+    } else if (!current_token_present && debounce_active) {
+        HAL_log_println("[NFC] Token removed during debounce");
+        debounce_active = false;
+        debounce_start = 0;
+    }
+
+    previous_token_present = current_token_present;
 }
 
 // Non-blocking NFC test state

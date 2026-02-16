@@ -7,10 +7,17 @@
 #include "config.h"
 #include "mood_registry.h"
 #include "platform_hal.h"
+#include "event_bus.h"
 
 static bool mock_token_present = false;
 static bool nfc_ready = false;
 static uint8_t mock_uid_index = 0;
+
+// Debounce state (mirrors nfc_handler.cpp)
+static bool debounce_active = false;
+static uint32_t debounce_start = 0;
+static bool previous_token_present = false;
+static bool token_processed = false;
 
 static const uint8_t invalid_test_uid[7] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -54,7 +61,46 @@ bool nfc_read_uid(uint8_t uid[7]) {
 }
 
 void nfc_reset_retry_state() {
-    // No-op in mock mode (state tracking done by game logic)
+    debounce_active = false;
+    debounce_start = 0;
+    previous_token_present = false;
+    token_processed = false;
+}
+
+void nfc_update() {
+    bool current_token_present = nfc_token_detected();
+
+    // Falling edge: token removed
+    if (previous_token_present && !current_token_present) {
+        HAL_log_println("[NFC] Token removed");
+        token_processed = false;
+        debounce_active = false;
+        debounce_start = 0;
+        event_bus_publish(NFC_REMOVED, PRIORITY_HIGH, nullptr, 0);
+    }
+
+    bool token_newly_presented = !previous_token_present && current_token_present;
+    bool should_process = token_newly_presented || debounce_active;
+
+    if (current_token_present && !token_processed && should_process) {
+        if (!debounce_active) {
+            debounce_active = true;
+            debounce_start = HAL_millis();
+            HAL_log_println("[NFC] Token detected, debouncing...");
+        } else if (HAL_millis() - debounce_start >= NFC_DEBOUNCE_TIME_MS) {
+            HAL_log_println("[NFC] Token stable, publishing NFC_TOKEN_PRESENT");
+            token_processed = true;
+            debounce_active = false;
+            debounce_start = 0;
+            event_bus_publish(NFC_TOKEN_PRESENT, PRIORITY_HIGH, nullptr, 0);
+        }
+    } else if (!current_token_present && debounce_active) {
+        HAL_log_println("[NFC] Token removed during debounce");
+        debounce_active = false;
+        debounce_start = 0;
+    }
+
+    previous_token_present = current_token_present;
 }
 
 void nfc_test() {

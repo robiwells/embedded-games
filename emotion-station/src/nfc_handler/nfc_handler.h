@@ -44,6 +44,15 @@ typedef struct {
 bool nfc_init();
 
 /**
+ * @brief Non-blocking update — owns debounce logic and publishes NFC_TOKEN_PRESENT
+ *
+ * Call once per main loop iteration (before game_update()).
+ * Publishes NFC_TOKEN_PRESENT when a token has been stable for NFC_DEBOUNCE_TIME_MS.
+ * Publishes NFC_REMOVED when a previously-stable token leaves.
+ */
+void nfc_update();
+
+/**
  * @brief Non-blocking check for NFC token presence
  *
  * Uses 0ms timeout for non-blocking detection.

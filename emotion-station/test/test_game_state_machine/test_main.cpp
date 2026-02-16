@@ -30,6 +30,8 @@
 void setUp(void) {
     fake_reset();
     platform_hal = &platform_fake;
+    event_bus_init();
+    led_controller_init();
     game_init();
 }
 
@@ -149,15 +151,17 @@ void test_exit_function_called_on_transition(void) {
 // =============================================================================
 
 void test_idle_state_sets_led_animation(void) {
+    // Start in NFC_DETECTED (brightness=255), then return to IDLE (brightness=128)
+    game_transition_to(STATE_NFC_DETECTED);
+    event_bus_process();
     game_transition_to(STATE_IDLE);
-    // LED controller should have been called (verified via fake HAL LED state)
-    // We can't directly check animation state without exposing it, but we can
-    // verify LED brightness was set
+    event_bus_process(); // LED subscriber fires on STATE_ENTERED
     TEST_ASSERT_EQUAL(128, fake_get_led_brightness()); // ECO mode = 128
 }
 
 void test_nfc_detected_sets_led_brightness(void) {
     game_transition_to(STATE_NFC_DETECTED);
+    event_bus_process(); // LED subscriber fires on STATE_ENTERED
     // Normal power mode = 255 brightness
     TEST_ASSERT_EQUAL(255, fake_get_led_brightness());
 }

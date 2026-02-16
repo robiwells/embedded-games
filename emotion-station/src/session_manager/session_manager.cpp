@@ -1,7 +1,18 @@
 #include "session_manager.h"
 #include "data_logger.h"
 #include "platform_hal.h"
+#include "event_bus.h"
 #include <string.h>
+
+typedef struct {
+    const Activity* activity;
+    MoodCategory    mood;
+    TimeOfDay       time_of_day;
+} SessionStartPayload;
+
+typedef struct {
+    bool completed;
+} SessionEndPayload;
 
 static SessionLog s_session;
 static uint32_t   s_start_time = 0;
@@ -39,4 +50,21 @@ void session_end(bool completed) {
 
 bool session_is_active() {
     return s_active;
+}
+
+static void on_session_started(const Event* event) {
+    const SessionStartPayload* p = (const SessionStartPayload*)event->payload.raw;
+    session_begin(p->mood, p->activity, p->time_of_day);
+}
+
+static void on_session_completed(const Event* event) {
+    const SessionEndPayload* p = (const SessionEndPayload*)event->payload.raw;
+    if (s_active) {
+        session_end(p->completed);
+    }
+}
+
+void session_manager_init() {
+    event_bus_subscribe(SESSION_STARTED,   on_session_started);
+    event_bus_subscribe(SESSION_COMPLETED, on_session_completed);
 }

@@ -3,10 +3,12 @@
 #include "platform_hal.h"
 #include "hardware.h"
 #include "led_controller.h"
+#include "session_manager.h"
 #include "game.h"
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "activity_manager.h"
+#include "activity_repository.h"
 #include "audio_player.h"
 #include "time_service.h"
 #include <esp_task_wdt.h>
@@ -21,7 +23,16 @@ void setup() {
 
     // LED and game must be ready before hardware_init() may call handle_error()
     led_init();
+    led_controller_init();
+    session_manager_init();
     game_init();
+
+    // Set activity repository before hardware_init() calls activity_manager_init()
+#ifdef WOKWI_SIMULATION
+    activity_repository = activity_repository_wokwi;
+#else
+    activity_repository = activity_repository_sd;
+#endif
 
 #ifndef WOKWI_SIMULATION
     esp_reset_reason_t reset_reason = esp_reset_reason();
@@ -76,6 +87,7 @@ void loop() {
     battery_manager_update();
     led_update();
     audio_loop();
+    nfc_update();
     nfc_test_update();
     game_update();
     event_bus_process(); // dispatch events published during this iteration

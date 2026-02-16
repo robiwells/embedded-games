@@ -18,6 +18,7 @@ typedef enum {
 } PowerMode;
 
 void led_init();
+void led_controller_init();
 void led_update();
 void led_set_animation(LedAnimationState animation);
 void led_set_brightness(PowerMode mode);

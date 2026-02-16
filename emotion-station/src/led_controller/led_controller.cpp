@@ -1,6 +1,8 @@
 #include "led_controller.h"
 #include "config.h"
 #include "platform_hal.h"
+#include "event_bus.h"
+#include "game.h"
 
 static LedAnimationState current_animation = LED_IDLE;
 static PowerMode current_power_mode = POWER_MODE_ECO;
@@ -13,6 +15,40 @@ void led_init() {
     HAL_led_show();
     animation_start = HAL_millis();
     HAL_log_println("LED controller initialised");
+}
+
+static void on_state_entered(const Event* event) {
+    GameState new_state = event->payload.state_transition.new_state;
+    switch (new_state) {
+        case STATE_IDLE:
+            led_set_animation(LED_IDLE);
+            led_set_brightness(POWER_MODE_ECO);
+            break;
+        case STATE_NFC_DETECTED:
+            led_set_animation(LED_DETECTED);
+            led_set_brightness(POWER_MODE_NORMAL);
+            break;
+        case STATE_PLAYING_ACTIVITY:
+            led_set_animation(LED_BREATHING);
+            break;
+        case STATE_ACTIVITY_COMPLETE:
+            led_set_animation(LED_SPARKLE);
+            break;
+        case STATE_ERROR:
+            led_set_animation(LED_ERROR);
+            led_set_brightness(POWER_MODE_ECO);
+            break;
+        case STATE_LOW_BATTERY:
+            led_set_animation(LED_ERROR);
+            led_set_brightness(POWER_MODE_CRITICAL);
+            break;
+        default:
+            break;
+    }
+}
+
+void led_controller_init() {
+    event_bus_subscribe(STATE_ENTERED, on_state_entered);
 }
 
 void led_set_brightness(PowerMode mode) {

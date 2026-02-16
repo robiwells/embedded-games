@@ -14,10 +14,6 @@ const char* activity_get_time_name(TimeOfDay time);
 void activity_set_sim_time(uint8_t hour);
 #endif
 
-#ifdef UNIT_TEST
-// Test-only injection API — loads a fake activity library for unit tests
-void activity_test_inject(const Activity* arr, uint8_t count);
 void activity_history_clear();
-#endif
 
 #endif

@@ -25,8 +25,10 @@ static void randomSeed(unsigned long) {}
 #include "../../test/mocks/platform_hal_fake.cpp"
 #include "../../test/mocks/time_service_mock.cpp"
 
-// Include production code (UNIT_TEST is defined via build_flags, so
-// activity_manager_init() stub is used and SD card is never accessed)
+// Activity repository mock (provides activity_repository global)
+#include "../../test/mocks/activity_repository_mock.cpp"
+
+// Include production code (UNIT_TEST is defined via build_flags)
 #include "../../src/activity_manager/activity_manager.cpp"
 
 // ============================================================================
@@ -69,7 +71,8 @@ void test_filter_by_mood_returns_only_matching_mood(void) {
     lib[1] = make_activity(2, MOOD_SAD,      true, true, true, true);
     lib[2] = make_activity(3, MOOD_HAPPY,    true, true, true, true);
     lib[3] = make_activity(4, MOOD_CALM,     true, true, true, true);
-    activity_test_inject(lib, 4);
+    activity_repository_mock_set(lib, 4);
+    activity_manager_init();
 
     Activity* result = activity_select(MOOD_HAPPY, TIME_MORNING);
     TEST_ASSERT_NOT_NULL(result);
@@ -80,14 +83,17 @@ void test_filter_by_mood_returns_null_when_no_match(void) {
     Activity lib[2];
     lib[0] = make_activity(1, MOOD_HAPPY,    true, true, true, true);
     lib[1] = make_activity(2, MOOD_SAD,      true, true, true, true);
-    activity_test_inject(lib, 2);
+    activity_repository_mock_set(lib, 2);
+    activity_manager_init();
 
     Activity* result = activity_select(MOOD_CALM, TIME_MORNING);
     TEST_ASSERT_NULL(result);
 }
 
 void test_filter_by_mood_zero_activities(void) {
-    activity_test_inject(nullptr, 0);
+    activity_repository_mock_set(nullptr, 0);
+    activity_manager_init();
+
     Activity* result = activity_select(MOOD_HAPPY, TIME_MORNING);
     TEST_ASSERT_NULL(result);
 }
@@ -102,7 +108,8 @@ void test_filter_by_time_returns_time_flagged_activities(void) {
     lib[0] = make_activity(1, MOOD_CALM, true,  true,  false, false);
     lib[1] = make_activity(2, MOOD_CALM, false, false, true,  false);
     lib[2] = make_activity(3, MOOD_CALM, true,  true,  false, true );
-    activity_test_inject(lib, 3);
+    activity_repository_mock_set(lib, 3);
+    activity_manager_init();
 
     // Run several selections — should always get id=2 (only evening activity)
     for (int i = 0; i < 5; i++) {
@@ -119,7 +126,8 @@ void test_filter_by_time_falls_back_to_mood_pool(void) {
     lib[0] = make_activity(1, MOOD_HAPPY, true,  true,  false, false);
     lib[1] = make_activity(2, MOOD_HAPPY, true,  false, false, false);
     lib[2] = make_activity(3, MOOD_HAPPY, false, true,  false, false);
-    activity_test_inject(lib, 3);
+    activity_repository_mock_set(lib, 3);
+    activity_manager_init();
 
     // Should still return a MOOD_HAPPY activity (fallback to mood pool)
     Activity* result = activity_select(MOOD_HAPPY, TIME_BEDTIME);
@@ -136,22 +144,17 @@ void test_history_excludes_recently_played(void) {
     lib[0] = make_activity(1, MOOD_ANGRY, true, true, true, true);
     lib[1] = make_activity(2, MOOD_ANGRY, true, true, true, true);
     lib[2] = make_activity(3, MOOD_ANGRY, true, true, true, true);
-    activity_test_inject(lib, 3);
+    activity_repository_mock_set(lib, 3);
+    activity_manager_init();
 
-    // Play id=1 and id=2 to fill partial history
-    // Simulate by calling select and tracking results
-    // Use a fixed random seed via HAL time approach — but random() may not be
-    // deterministic here. Instead, verify that no activity repeats immediately.
     Activity* first = activity_select(MOOD_ANGRY, TIME_MORNING);
     TEST_ASSERT_NOT_NULL(first);
 
-    // Run 10 selections — id should not repeat consecutively
+    // Run 10 selections — verify we always get a valid activity
     uint8_t last_id = first->id;
     for (int i = 0; i < 10; i++) {
         Activity* result = activity_select(MOOD_ANGRY, TIME_MORNING);
         TEST_ASSERT_NOT_NULL(result);
-        // Not guaranteed to differ every time (history only size 5), but
-        // just verify we always get a valid activity
         TEST_ASSERT_TRUE(result->id >= 1 && result->id <= 3);
         last_id = result->id;
         (void)last_id;
@@ -159,16 +162,14 @@ void test_history_excludes_recently_played(void) {
 }
 
 void test_history_clears_when_all_candidates_recent(void) {
-    // Only 2 activities for this mood, history size is 5
-    // After playing both, all are "recent" — history should auto-clear
     Activity lib[2];
     lib[0] = make_activity(10, MOOD_ANXIOUS, true, true, true, true);
     lib[1] = make_activity(11, MOOD_ANXIOUS, true, true, true, true);
-    activity_test_inject(lib, 2);
+    activity_repository_mock_set(lib, 2);
+    activity_manager_init();
 
     // Fill history with both IDs
     for (int i = 0; i < 5; i++) {
-        // Force history entries by selecting repeatedly
         activity_select(MOOD_ANXIOUS, TIME_MORNING);
     }
 
@@ -187,7 +188,8 @@ void test_random_pick_returns_valid_activity(void) {
     for (uint8_t i = 0; i < 6; i++) {
         lib[i] = make_activity(i + 1, MOOD_ENERGETIC, true, true, true, true);
     }
-    activity_test_inject(lib, 6);
+    activity_repository_mock_set(lib, 6);
+    activity_manager_init();
 
     Activity* result = activity_select(MOOD_ENERGETIC, TIME_AFTERNOON);
     TEST_ASSERT_NOT_NULL(result);
@@ -200,10 +202,10 @@ void test_random_pick_returns_valid_activity(void) {
 // ============================================================================
 
 void test_single_activity_skips_history(void) {
-    // Only 1 activity — should always return it regardless of history
     Activity lib[1];
     lib[0] = make_activity(42, MOOD_SAD, true, true, true, true);
-    activity_test_inject(lib, 1);
+    activity_repository_mock_set(lib, 1);
+    activity_manager_init();
 
     for (int i = 0; i < 5; i++) {
         Activity* result = activity_select(MOOD_SAD, TIME_MORNING);
@@ -213,7 +215,6 @@ void test_single_activity_skips_history(void) {
 }
 
 void test_all_moods_return_activities(void) {
-    // One activity for each mood
     Activity lib[6];
     lib[0] = make_activity(1, MOOD_HAPPY,     true, true, true, true);
     lib[1] = make_activity(2, MOOD_SAD,       true, true, true, true);
@@ -221,7 +222,8 @@ void test_all_moods_return_activities(void) {
     lib[3] = make_activity(4, MOOD_ENERGETIC, true, true, true, true);
     lib[4] = make_activity(5, MOOD_ANXIOUS,   true, true, true, true);
     lib[5] = make_activity(6, MOOD_ANGRY,     true, true, true, true);
-    activity_test_inject(lib, 6);
+    activity_repository_mock_set(lib, 6);
+    activity_manager_init();
 
     MoodCategory moods[] = {MOOD_HAPPY, MOOD_SAD, MOOD_CALM,
                              MOOD_ENERGETIC, MOOD_ANXIOUS, MOOD_ANGRY};
