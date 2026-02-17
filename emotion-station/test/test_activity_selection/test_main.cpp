@@ -29,7 +29,7 @@ static void randomSeed(unsigned long) {}
 #include "../../test/mocks/activity_repository_mock.cpp"
 
 // Include production code (UNIT_TEST is defined via build_flags)
-#include "../../src/activity_manager/activity_manager.cpp"
+#include "../../src/app/activity_manager/activity_manager.cpp"
 
 // ============================================================================
 // Test fixture helpers

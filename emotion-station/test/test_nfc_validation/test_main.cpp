@@ -12,7 +12,7 @@
 // mood_registry must come before nfc mock (nfc_get_mood_name delegates to it)
 #include "../../test/mocks/mood_registry_mock.cpp"
 // event_bus needed because nfc_handler_mock includes it
-#include "../../src/event_bus/event_bus.cpp"
+#include "../../src/middleware/event_bus/event_bus.cpp"
 // Include mock (provides nfc_validate_uid and nfc_get_mood_name implementations)
 #include "../../test/mocks/nfc_handler_mock.cpp"
 

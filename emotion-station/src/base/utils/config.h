@@ -84,6 +84,19 @@
 
 // ========= ENUMS (Forward declarations for Phase 2.5 Event Bus) =========
 
+// Game states (system-wide type — used by event_bus, led_controller, and game)
+typedef enum {
+    STATE_IDLE = 0,              // Waiting for NFC tag
+    STATE_NFC_DETECTED,          // NFC tag detected, reading UID
+    STATE_VALIDATING,            // Validating NFC UID
+    STATE_SELECTING,             // Choosing appropriate activity
+    STATE_PLAYING_ACTIVITY,      // Activity in progress
+    STATE_ACTIVITY_COMPLETE,     // Success celebration
+    STATE_ERROR,                 // Error handling state
+    STATE_LOW_BATTERY,           // Critical battery mode
+    NUM_STATES                   // Array sizing constant
+} GameState;
+
 // Mood categories (fully implemented in Phase 3)
 typedef enum {
     MOOD_HAPPY = 0,

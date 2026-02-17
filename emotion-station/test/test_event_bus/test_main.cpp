@@ -9,7 +9,7 @@
 #include "../../test/mocks/platform_hal_fake.cpp"
 
 // Include production code under test
-#include "../../src/event_bus/event_bus.cpp"
+#include "../../src/middleware/event_bus/event_bus.cpp"
 
 // ========= Test state =========
 

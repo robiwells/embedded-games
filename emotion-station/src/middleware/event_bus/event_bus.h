@@ -16,7 +16,6 @@
 #endif
 
 #include "config.h"
-#include "game.h"
 
 // ========= EVENT TYPE ENUMERATION (12 types as per architecture.md Section 3.5) =========
 

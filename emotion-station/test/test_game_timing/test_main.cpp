@@ -21,9 +21,9 @@
 #include "../../test/mocks/session_manager_mock.cpp"
 
 // Include production code directly (test-only pattern)
-#include "../../src/event_bus/event_bus.cpp"
-#include "../../src/game/game.cpp"
-#include "../../src/led_controller/led_controller.cpp"
+#include "../../src/middleware/event_bus/event_bus.cpp"
+#include "../../src/app/game/game.cpp"
+#include "../../src/middleware/led_controller/led_controller.cpp"
 
 // Mock NFC control functions (declared in nfc_handler_mock.cpp)
 extern void mock_nfc_set_token_present(bool present);
