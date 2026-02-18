@@ -4,6 +4,7 @@
  */
 
 #include "activity_repository.h"
+#include "activity_repository_test.h"
 #include <string.h>
 
 static const Activity* mock_arr = nullptr;

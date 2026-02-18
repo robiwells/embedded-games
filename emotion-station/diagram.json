@@ -16,6 +16,13 @@
       "top": -100,
       "left": 200,
       "attrs": { "pixels": "16" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 80,
+      "left": 200,
+      "attrs": {}
     }
   ],
   "connections": [
@@ -23,6 +30,8 @@
     ["esp:RX", "$serialMonitor:TX", "", []],
     ["ring1:DIN", "esp:5", "green", []],
     ["ring1:VCC", "esp:5V", "red", []],
-    ["ring1:GND", "esp:GND.2", "black", []]
+    ["ring1:GND", "esp:GND.2", "black", []],
+    ["esp:27", "bz1:1", "purple", []],
+    ["bz1:2", "esp:GND.1", "black", []]
   ]
 }

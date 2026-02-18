@@ -1,10 +1,6 @@
 #ifndef GAME_H
 #define GAME_H
 
-#ifndef UNIT_TEST
-#include <Arduino.h>
-#endif
-
 #include "config.h"
 #include "platform_hal.h"
 

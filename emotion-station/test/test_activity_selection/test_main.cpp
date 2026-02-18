@@ -16,17 +16,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Arduino stubs needed by activity_manager.cpp in native builds
-static long _arduino_random(long max) { return (max > 0) ? (rand() % max) : 0; }
-#define random(x) _arduino_random(x)
-static void randomSeed(unsigned long) {}
-
 // Provide stubs needed by activity_manager.cpp
 #include "../../test/mocks/platform_hal_fake.cpp"
 #include "../../test/mocks/time_service_mock.cpp"
 
-// Activity repository mock (provides activity_repository global)
+// Activity repository mock (provides activity_repository global + mock_set)
 #include "../../test/mocks/activity_repository_mock.cpp"
+#include "../../test/mocks/activity_repository_test.h"
 
 // Include production code (UNIT_TEST is defined via build_flags)
 #include "../../src/app/activity_manager/activity_manager.cpp"

@@ -6,6 +6,8 @@
 #include "data_logger.h"
 #include "mood_registry.h"
 #include "platform_hal.h"
+#include <stdio.h>
+#include <string.h>
 
 static const char* time_name(TimeOfDay t) {
     switch (t) {

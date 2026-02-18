@@ -2,6 +2,7 @@
 #include "config.h"
 #include "platform_hal.h"
 #include "event_bus.h"
+#include <math.h>
 
 static LedAnimationState current_animation = LED_IDLE;
 static PowerMode current_power_mode = POWER_MODE_ECO;

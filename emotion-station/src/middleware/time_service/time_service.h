@@ -14,13 +14,9 @@ TimeOfDay time_service_get_time_of_day();
 uint8_t time_service_get_hour();
 
 // Sets the RTC to the specified date/time (real hardware only).
-#ifndef WOKWI_SIMULATION
 void time_service_set(int year, int month, int day, int hour, int min, int sec);
-#endif
 
-#ifdef WOKWI_SIMULATION
 // Adjusts the simulated time offset so the current hour appears as the given value.
 void time_service_set_mock_hour(uint8_t hour);
-#endif
 
 #endif // TIME_SERVICE_H

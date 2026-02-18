@@ -112,7 +112,6 @@ MoodCategory nfc_validate_uid(const uint8_t uid[7]);
  */
 const char* nfc_get_mood_name(MoodCategory mood);
 
-#ifdef WOKWI_SIMULATION
 /**
  * @brief Handle mock NFC commands (Wokwi simulation only)
  *
@@ -123,6 +122,5 @@ const char* nfc_get_mood_name(MoodCategory mood);
  * @param cmd Serial command character
  */
 void nfc_handle_mock_command(char cmd);
-#endif
 
 #endif // NFC_HANDLER_H

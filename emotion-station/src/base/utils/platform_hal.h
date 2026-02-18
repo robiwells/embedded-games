@@ -50,6 +50,14 @@ typedef struct {
     void (*audio_stop)(void);               ///< Stop current playback
     bool (*audio_is_running)(void);         ///< True if audio currently playing
     void (*audio_loop)(void);               ///< Must be called every loop iteration
+
+    // ========= ADC / PRNG Functions =========
+    int (*analog_read)(uint8_t pin);        ///< Read analogue pin value (0-4095 on ESP32)
+    void (*random_seed)(uint32_t seed);     ///< Seed the PRNG
+    long (*random_max)(long max);           ///< Return random number in [0, max)
+
+    // ========= Verbose Logging =========
+    void (*log_verbose)(const char* msg);   ///< Debug-only log; no-op in test builds
 } PlatformHAL;
 
 /**
@@ -85,6 +93,10 @@ extern PlatformHAL* platform_hal;
 #define HAL_audio_stop() platform_hal->audio_stop()
 #define HAL_audio_is_running() platform_hal->audio_is_running()
 #define HAL_audio_loop() platform_hal->audio_loop()
+#define HAL_analog_read(pin) platform_hal->analog_read(pin)
+#define HAL_random_seed(seed) platform_hal->random_seed(seed)
+#define HAL_random(max) platform_hal->random_max(max)
+#define HAL_log_verbose(msg) platform_hal->log_verbose(msg)
 
 // ========= Platform Implementations =========
 
@@ -103,57 +115,5 @@ extern PlatformHAL platform_real;
  * Provides controllable time, log capture, LED state inspection.
  */
 extern PlatformHAL platform_fake;
-
-// ========= Test Utilities (only available in unit tests) =========
-
-#ifdef UNIT_TEST
-/**
- * @brief Reset fake HAL state (call in test setUp)
- */
-void fake_reset(void);
-
-/**
- * @brief Set fake time to absolute value
- * @param ms Time in milliseconds
- */
-void fake_set_millis(unsigned long ms);
-
-/**
- * @brief Advance fake time by delta
- * @param delta Time to advance in milliseconds
- */
-void fake_advance_time(unsigned long delta);
-
-/**
- * @brief Get last logged message
- * @return Pointer to last log string (or NULL if none)
- */
-const char* fake_get_last_log(void);
-
-/**
- * @brief Get last LED animation colour for pixel
- * @param n Pixel index
- * @return 32-bit colour value (0xRRGGBB)
- */
-uint32_t fake_get_led_color(uint16_t n);
-
-/**
- * @brief Get current LED brightness
- * @return Brightness value (0-255)
- */
-uint8_t fake_get_led_brightness(void);
-
-/**
- * @brief Simulate audio playing or finished
- * @param running True if audio should appear to be playing
- */
-void fake_set_audio_running(bool running);
-
-/**
- * @brief Get the last audio path passed to audio_play
- * @return Pointer to path string (or empty string if none)
- */
-const char* fake_get_last_audio_path(void);
-#endif // UNIT_TEST
 
 #endif // PLATFORM_HAL_H

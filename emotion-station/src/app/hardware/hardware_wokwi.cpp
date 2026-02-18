@@ -9,6 +9,7 @@
 #include "event_bus.h"
 #include "nfc_handler.h"
 #include "activity_manager.h"
+#include "time_service.h"
 #include "audio_player.h"
 #include "data_logger.h"
 #include <esp_task_wdt.h>
@@ -19,6 +20,10 @@ static float last_battery_voltage = 4.2f;
 float battery_get_voltage() { return last_battery_voltage; }
 bool  battery_is_low()      { return last_battery_voltage < BATTERY_LOW_THRESHOLD; }
 bool  battery_is_critical() { return last_battery_voltage < BATTERY_CRITICAL_THRESHOLD; }
+
+void activity_set_sim_time(uint8_t hour) {
+    time_service_set_mock_hour(hour);
+}
 
 void battery_set_mock_voltage(float voltage) {
     last_battery_voltage = voltage;

@@ -11,9 +11,7 @@
 #ifndef EVENT_BUS_H
 #define EVENT_BUS_H
 
-#ifndef UNIT_TEST
-#include <Arduino.h>
-#endif
+#include <string.h>
 
 #include "config.h"
 

@@ -8,6 +8,7 @@
 #include "mood_registry.h"
 #include "platform_hal.h"
 #include "event_bus.h"
+#include <stdio.h>
 
 static bool mock_token_present = false;
 static bool nfc_ready = false;
@@ -62,9 +63,10 @@ bool nfc_read_uid(uint8_t uid[7]) {
 
 void nfc_reset_retry_state() {
     debounce_active = false;
-    debounce_start = 0;
-    previous_token_present = false;
-    token_processed = false;
+    debounce_start  = 0;
+    // Preserve previous_token_present — resetting it creates a fake rising edge.
+    // If card was present on last nfc_update(), treat it as already processed.
+    token_processed = previous_token_present;
 }
 
 void nfc_update() {

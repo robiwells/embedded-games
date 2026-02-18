@@ -75,6 +75,7 @@ void setup() {
     HAL_log_println("  E - Jump to Evening (17:00)");
     HAL_log_println("  B - Jump to Bedtime (21:00)");
     HAL_log_println("  b - Cycle battery voltage (4.2 -> 3.5 -> 3.4 -> 3.3 -> ...)");
+    HAL_log_println("  s - Skip current audio (advance to ACTIVITY_COMPLETE)");
 #endif
 }
 
@@ -129,6 +130,9 @@ void loop() {
             float voltages[] = {4.2f, 3.5f, 3.4f, 3.3f};
             battery_set_mock_voltage(voltages[b_step % 4]);
             b_step++;
+        } else if (cmd == 's') {
+            audio_stop();
+            HAL_log_println("Audio: MOCK skipped");
         }
 #endif
     }

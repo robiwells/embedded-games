@@ -13,6 +13,7 @@
 #include "mood_registry.h"
 #include "event_bus.h"
 #include <Wire.h>
+#include <stdio.h>
 #include <Adafruit_PN532.h>
 
 // PN532 instance (I2C mode using SDA/SCL pins)
@@ -94,9 +95,10 @@ bool nfc_read_uid(uint8_t uid[7]) {
 
 void nfc_reset_retry_state() {
     debounce_active = false;
-    debounce_start = 0;
-    previous_token_present = false;
-    token_processed = false;
+    debounce_start  = 0;
+    // Preserve previous_token_present — resetting it creates a fake rising edge.
+    // If card was present on last nfc_update(), treat it as already processed.
+    token_processed = previous_token_present;
 }
 
 void nfc_update() {

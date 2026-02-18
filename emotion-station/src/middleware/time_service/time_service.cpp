@@ -1,25 +1,6 @@
 #include "time_service.h"
 #include "platform_hal.h"
-
-#ifdef WOKWI_SIMULATION
-
-static uint8_t s_sim_time_offset_hours = 12;
-
-void time_service_init() {
-    // No RTC hardware in Wokwi — time is driven by millis() simulation
-}
-
-void time_service_set_mock_hour(uint8_t hour) {
-    uint32_t elapsed_hours = (HAL_millis() / 60000UL) % 24;
-    s_sim_time_offset_hours = (uint8_t)((hour + 24 - elapsed_hours) % 24);
-}
-
-uint8_t time_service_get_hour() {
-    return (uint8_t)(((HAL_millis() / 60000UL) + s_sim_time_offset_hours) % 24);
-}
-
-#else // Real hardware
-
+#include <stdio.h>
 #include <time.h>
 
 void time_service_init() {
@@ -81,16 +62,8 @@ uint8_t time_service_get_hour() {
     return (uint8_t)timeinfo.tm_hour;
 }
 
-#endif // WOKWI_SIMULATION
-
 TimeOfDay time_service_get_time_of_day() {
     uint8_t hour = time_service_get_hour();
-
-#ifdef WOKWI_SIMULATION
-    HAL_log_print("ActivityMgr: Simulated hour: ");
-    HAL_log_println(String(hour).c_str());
-#endif
-
     if (hour >= 6  && hour < 12) return TIME_MORNING;
     if (hour >= 12 && hour < 17) return TIME_AFTERNOON;
     if (hour >= 17 && hour < 21) return TIME_EVENING;

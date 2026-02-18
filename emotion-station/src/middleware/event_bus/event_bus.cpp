@@ -11,6 +11,7 @@
 
 #include "event_bus.h"
 #include "platform_hal.h"
+#include <stdio.h>
 
 // ========= CIRCULAR QUEUE CONFIGURATION =========
 
@@ -83,12 +84,10 @@ void event_bus_publish(EventType type, EventPriority priority, const void* paylo
     queue_count++;
 
     // Log publication (verbose for debugging)
-    #ifndef UNIT_TEST
     char log_buf[80];
     snprintf(log_buf, sizeof(log_buf), "EventBus: Published event type %d (priority %d, queue: %d/8)",
              type, priority, queue_count);
-    HAL_log_println(log_buf);
-    #endif
+    HAL_log_verbose(log_buf);
 }
 
 void event_bus_subscribe(EventType type, EventCallback callback) {
@@ -112,12 +111,10 @@ void event_bus_subscribe(EventType type, EventCallback callback) {
     subscribers[type][subscriber_counts[type]] = callback;
     subscriber_counts[type]++;
 
-    #ifndef UNIT_TEST
     char log_buf[60];
     snprintf(log_buf, sizeof(log_buf), "EventBus: Subscribed to event type %d (%d subscribers)",
              type, subscriber_counts[type]);
-    HAL_log_println(log_buf);
-    #endif
+    HAL_log_verbose(log_buf);
 }
 
 void event_bus_process() {
@@ -147,15 +144,13 @@ void event_bus_process() {
     if (events_processed > 0) {
         uint32_t process_time = HAL_micros() - process_start;
 
-        #ifndef UNIT_TEST
         char log_buf[80];
         snprintf(log_buf, sizeof(log_buf), "EventBus: Processed %d events in %lu µs",
                  events_processed, process_time);
-        HAL_log_println(log_buf);
+        HAL_log_verbose(log_buf);
 
         if (process_time > 200) {
-            HAL_log_println("EventBus: WARNING - Processing time exceeded 200µs threshold!");
+            HAL_log_verbose("EventBus: WARNING - Processing time exceeded 200µs threshold!");
         }
-        #endif
     }
 }

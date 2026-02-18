@@ -10,6 +10,7 @@
  */
 
 #include "platform_hal.h"
+#include "platform_hal_test.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -179,6 +180,28 @@ static void fake_audio_loop(void) {
     // No-op
 }
 
+// ========= ADC / PRNG Functions =========
+
+static int fake_analog_read(uint8_t pin) {
+    (void)pin;
+    return 0;  // No ADC hardware in tests
+}
+
+static void fake_random_seed(uint32_t seed) {
+    (void)seed;  // No-op; tests control randomness via fixed data
+}
+
+static long fake_random_max(long max) {
+    if (max <= 0) return 0;
+    return rand() % max;
+}
+
+// ========= Verbose Logging =========
+
+static void fake_log_verbose(const char* msg) {
+    (void)msg;  // Suppress verbose output in tests
+}
+
 // ========= Platform HAL Instance =========
 
 /**
@@ -216,7 +239,15 @@ PlatformHAL platform_fake = {
     .audio_play = fake_audio_play,
     .audio_stop = fake_audio_stop,
     .audio_is_running = fake_audio_is_running,
-    .audio_loop = fake_audio_loop
+    .audio_loop = fake_audio_loop,
+
+    // ADC / PRNG
+    .analog_read = fake_analog_read,
+    .random_seed = fake_random_seed,
+    .random_max = fake_random_max,
+
+    // Verbose logging
+    .log_verbose = fake_log_verbose
 };
 
 // Global HAL pointer (defined here for tests)

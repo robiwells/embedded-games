@@ -8,6 +8,7 @@
 #include "data_logger.h"
 #include "platform_hal.h"
 #include "mood_registry.h"
+#include <stdio.h>
 #include <SD.h>
 
 static const char* time_name(TimeOfDay t) {

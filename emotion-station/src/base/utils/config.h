@@ -1,12 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#ifndef UNIT_TEST
-#include <Arduino.h>
-#else
 #include <stdint.h>
 #include <stdbool.h>
-#endif
 
 // =============================================================================
 // GPIO Pin Assignment Table
@@ -157,17 +153,6 @@ typedef enum {
     ERROR_BATTERY_CRITICAL,
     ERROR_WATCHDOG_RESET
 } ErrorCode;
-
-// Debug configuration (set to 0 for production build)
-#define DEBUG_SERIAL 1
-
-#if DEBUG_SERIAL
-    #define DEBUG_PRINT(x)   Serial.print(x)
-    #define DEBUG_PRINTLN(x) Serial.println(x)
-#else
-    #define DEBUG_PRINT(x)
-    #define DEBUG_PRINTLN(x)
-#endif
 
 // Fallback audio paths (used if activities.json fails to load)
 // Indexed by MoodCategory enum — must match order exactly

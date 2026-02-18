@@ -5,20 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 
-// Global repository pointer — defined here for hardware/wokwi builds.
-// The native test env overrides this in activity_repository_mock.cpp.
-#ifndef UNIT_TEST
-const ActivityRepository* activity_repository = nullptr;
-#endif
-
 static Activity activities[MAX_ACTIVITIES];
 static uint8_t activity_count = 0;
-
-#ifdef WOKWI_SIMULATION
-void activity_set_sim_time(uint8_t hour) {
-    time_service_set_mock_hour(hour);
-}
-#endif
 
 // ---------------------------------------------------------------------------
 // History tracking — avoid recent repeats per mood
@@ -157,7 +145,7 @@ static const uint8_t NUM_PIPELINE_STAGES =
 
 static Activity* stage_random_pick(uint8_t* pool, uint8_t count) {
     if (count == 0) return nullptr;
-    uint8_t pick = (uint8_t)(random(count));
+    uint8_t pick = (uint8_t)(HAL_random(count));
     return &activities[pool[pick]];
 }
 
@@ -200,9 +188,7 @@ Activity* activity_select(MoodCategory mood, TimeOfDay time) {
 
     static uint16_t selection_count = 0;
     if (++selection_count % 10 == 0) {
-#if !defined(UNIT_TEST)
-        randomSeed((uint32_t)(analogRead(BATTERY_ADC_PIN)) ^ HAL_millis());
-#endif
+        HAL_random_seed((uint32_t)(HAL_analog_read(BATTERY_ADC_PIN)) ^ HAL_millis());
     }
     Activity* selected = stage_random_pick(current, pool_size);
     if (selected) {

@@ -15,9 +15,4 @@ extern const ActivityRepository* activity_repository_sd;
 extern const ActivityRepository* activity_repository_wokwi;
 extern const ActivityRepository* activity_repository_mock;
 
-#ifdef UNIT_TEST
-// Test helper — load arr into the mock repository
-void activity_repository_mock_set(const Activity* arr, uint8_t count);
-#endif
-
 #endif // ACTIVITY_REPOSITORY_H

@@ -122,6 +122,26 @@ static void real_audio_loop(void) {
     audio_loop();
 }
 
+// ========= ADC / PRNG Functions =========
+
+static int real_analog_read(uint8_t pin) {
+    return analogRead(pin);
+}
+
+static void real_random_seed(uint32_t seed) {
+    randomSeed(seed);
+}
+
+static long real_random_max(long max) {
+    return random(max);
+}
+
+// ========= Verbose Logging =========
+
+static void real_log_verbose(const char* msg) {
+    Serial.println(msg);
+}
+
 // ========= Platform HAL Instance =========
 
 /**
@@ -159,7 +179,15 @@ PlatformHAL platform_real = {
     .audio_play = real_audio_play,
     .audio_stop = real_audio_stop,
     .audio_is_running = real_audio_is_running,
-    .audio_loop = real_audio_loop
+    .audio_loop = real_audio_loop,
+
+    // ADC / PRNG
+    .analog_read = real_analog_read,
+    .random_seed = real_random_seed,
+    .random_max = real_random_max,
+
+    // Verbose logging
+    .log_verbose = real_log_verbose
 };
 
 // Global HAL pointer (set in main.cpp)
