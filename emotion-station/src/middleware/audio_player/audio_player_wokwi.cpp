@@ -5,8 +5,6 @@
 
 #include "audio_player.h"
 #include "platform_hal.h"
-#include "config.h"
-#include <Arduino.h>
 #include <stdio.h>
 
 // Mock playback — simulates a 5-second audio duration
@@ -22,7 +20,6 @@ bool audio_init() {
 void audio_loop() {
     if (mock_playing && HAL_millis() - mock_start_time >= mock_duration) {
         mock_playing = false;
-        noTone(I2S_DOUT_PIN);
         HAL_log_println("Audio: MOCK playback complete");
     }
 }
@@ -33,12 +30,10 @@ bool audio_play(const char* file_path) {
     HAL_log_println(buf);
     mock_playing = true;
     mock_start_time = HAL_millis();
-    tone(I2S_DOUT_PIN, 440);
     return true;
 }
 
 void audio_stop() {
-    noTone(I2S_DOUT_PIN);
     mock_playing = false;
 }
 
